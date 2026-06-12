@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { getFeedback, getProfile, getProposals, getRuns } from "@/lib/store";
+import {
+  getAnalyticsSummary,
+  getFeedback,
+  getProfile,
+  getProposals,
+  getRuns,
+} from "@/lib/store";
 import { computeProfileConfidence } from "@/lib/confidence";
 import { CONNECTORS } from "@/lib/connectors";
 
@@ -10,6 +16,7 @@ export async function GET() {
   const runs = getRuns(user.id, 50);
   const feedback = getFeedback(user.id);
   const proposals = getProposals(user.id);
+  const analytics = getAnalyticsSummary(user.id);
 
   const persona = profile.persona ?? null;
 
@@ -74,6 +81,7 @@ export async function GET() {
             ) / 10
           : null,
     },
+    analytics,
     learnings,
   });
 }

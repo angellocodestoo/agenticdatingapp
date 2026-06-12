@@ -4,6 +4,7 @@ import {
   getProfile,
   publishUserCandidateProfile,
   setUserCandidateVisibility,
+  trackEvent,
   updateProfile,
 } from "@/lib/store";
 import { getMockSourceData } from "@/lib/integrations/mock";
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       patch.aiProvider = String(body.provider);
     }
     if (Object.keys(patch).length > 0) updateProfile(user.id, patch);
+    trackEvent(user.id, "profile_source_connected", { source, provider: body.provider ?? null });
     return NextResponse.json(getProfile(user.id));
   }
 
@@ -97,6 +99,7 @@ export async function POST(req: NextRequest) {
         wantsKids: wantsKids as "yes" | "no" | "open",
       },
     });
+    trackEvent(user.id, "profile_basics_saved", { age, gender, seeking, wantsKids });
     return NextResponse.json(getProfile(user.id));
   }
 
@@ -153,6 +156,10 @@ export async function POST(req: NextRequest) {
     });
     updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
     publishUserCandidateProfile(user.id);
+    trackEvent(user.id, "persona_built", {
+      source: "ai_memory_import",
+      connectedSources: updated.connectedSources.length,
+    });
     return NextResponse.json(getProfile(user.id));
   }
 
@@ -174,6 +181,10 @@ export async function POST(req: NextRequest) {
     });
     updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
     publishUserCandidateProfile(user.id);
+    trackEvent(user.id, "persona_built", {
+      source: "build_persona",
+      connectedSources: profile.connectedSources.length,
+    });
     return NextResponse.json(getProfile(user.id));
   }
 
@@ -185,6 +196,7 @@ export async function POST(req: NextRequest) {
     }
     updateProfile(user.id, { persona: { ...profile.persona, ...patch } });
     publishUserCandidateProfile(user.id);
+    trackEvent(user.id, "persona_updated", { fields: Object.keys(patch ?? {}) });
     return NextResponse.json(getProfile(user.id));
   }
 

@@ -7,6 +7,7 @@ import {
   getRun,
   saveMatchLifecycle,
   saveProposal,
+  trackEvent,
 } from "@/lib/store";
 import { getMockFreeBusy, getVenueRecommendation } from "@/lib/integrations/mock";
 import type { DateProposal } from "@/lib/types";
@@ -90,6 +91,14 @@ export async function POST(req: NextRequest) {
       candidateConsent: "declined",
       updatedAt: Date.now(),
     });
+    trackEvent(record.userId, "mutual_interest_declined", {
+      lifecycleId: record.id,
+      candidateId: record.candidateId,
+    });
+    trackEvent(user.id, "mutual_interest_declined", {
+      lifecycleId: record.id,
+      requesterUserId: record.userId,
+    });
     addNotification(record.userId, {
       type: "agent_update",
       title: "A match request was declined",
@@ -105,6 +114,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error ?? "Could not create proposal" }, { status: 400 });
     }
     saveProposal(record.userId, result.proposal);
+    trackEvent(record.userId, "mutual_interest_accepted", {
+      lifecycleId: record.id,
+      candidateId: record.candidateId,
+    });
+    trackEvent(user.id, "mutual_interest_accepted", {
+      lifecycleId: record.id,
+      requesterUserId: record.userId,
+    });
+    trackEvent(record.userId, "date_proposed", {
+      proposalId: result.proposal.proposalId,
+      candidateId: record.candidateId,
+      consentRequired: true,
+    });
     const updated = saveMatchLifecycle({
       ...record,
       status: "date_proposed",

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { getCandidateProfile, saveSafetyEvent } from "@/lib/store";
+import { getCandidateProfile, saveSafetyEvent, trackEvent } from "@/lib/store";
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
@@ -23,6 +23,11 @@ export async function POST(req: NextRequest) {
     action,
     reason,
     notes,
+  });
+  trackEvent(user.id, "safety_action_created", {
+    candidateId,
+    action,
+    reason: reason ?? null,
   });
 
   return NextResponse.json({

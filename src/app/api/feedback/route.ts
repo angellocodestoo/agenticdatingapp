@@ -9,6 +9,7 @@ import {
   getRuns,
   newFeedbackId,
   saveFeedback,
+  trackEvent,
   updateProfile,
 } from "@/lib/store";
 import type {
@@ -182,6 +183,14 @@ export async function POST(req: NextRequest) {
     createdAt: Date.now(),
   };
   saveFeedback(user.id, feedback);
+  trackEvent(user.id, "feedback_submitted", {
+    proposalId,
+    candidateId: proposal.candidateId ?? null,
+    rating,
+    chemistry,
+    conversation,
+    wouldSeeAgain,
+  });
 
   addNotification(user.id, {
     type: "agent_update",

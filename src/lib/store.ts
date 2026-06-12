@@ -4,6 +4,8 @@ import type {
   AgentRunRecord,
   AgentSettings,
   AppNotification,
+  AnalyticsEvent,
+  AnalyticsEventName,
   CandidateProfile,
   DateFeedback,
   DateProposal,
@@ -328,6 +330,62 @@ export function getBlockedCandidateIds(userId: string): Set<string> {
       .filter((event) => event.action === "block")
       .map((event) => event.candidateId)
   );
+}
+
+// Analytics
+
+export function trackEvent(
+  userId: string,
+  name: AnalyticsEventName,
+  properties: Record<string, unknown> = {}
+): AnalyticsEvent {
+  const event: AnalyticsEvent = {
+    id: uid("evt"),
+    userId,
+    name,
+    properties,
+    createdAt: Date.now(),
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO analytics_events (id, user_id, name, created_at, json)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(event.id, userId, name, event.createdAt, JSON.stringify(event));
+  return event;
+}
+
+export function getAnalyticsEvents(userId: string, limit = 500): AnalyticsEvent[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM analytics_events
+       WHERE user_id = ?
+       ORDER BY created_at DESC LIMIT ?`
+    )
+    .all(userId, limit) as Array<{ json: string }>;
+  return rows.map((r) => JSON.parse(r.json) as AnalyticsEvent);
+}
+
+export function getAnalyticsSummary(userId: string) {
+  const events = getAnalyticsEvents(userId, 1000);
+  const counts = new Map<AnalyticsEventName, number>();
+  for (const event of events) counts.set(event.name, (counts.get(event.name) ?? 0) + 1);
+  const count = (name: AnalyticsEventName) => counts.get(name) ?? 0;
+  return {
+    totalEvents: events.length,
+    counts: Object.fromEntries(counts.entries()),
+    funnel: {
+      profileStarted: count("profile_basics_saved") + count("profile_source_connected"),
+      personaBuilt: count("persona_built"),
+      agentRuns: count("agent_run_started"),
+      matchesSelected: count("match_selected"),
+      mutualAccepted: count("mutual_interest_accepted"),
+      datesProposed: count("date_proposed"),
+      datesAccepted: count("date_accepted"),
+      feedbackSubmitted: count("feedback_submitted"),
+    },
+    recent: events.slice(0, 12),
+  };
 }
 
 // ── Date proposals ───────────────────────────────────────────────────

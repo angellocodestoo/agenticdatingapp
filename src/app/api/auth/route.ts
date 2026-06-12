@@ -10,6 +10,7 @@ import {
   requireUser,
   verifyPassword,
 } from "@/lib/auth";
+import { trackEvent } from "@/lib/store";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Already signed in" }, { status: 400 });
     }
     claimAccount(user.id, email, password, displayName);
+    trackEvent(user.id, "signup_completed", { hasDisplayName: Boolean(displayName) });
     return NextResponse.json({
       user: { id: user.id, email, displayName: displayName ?? null, isGuest: false },
     });
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
       maxAge: 60 * 60 * 24 * 90,
       secure: process.env.NODE_ENV === "production",
     });
+    trackEvent(found.id, "login_completed");
     return NextResponse.json({
       user: { id: found.id, email: found.email, displayName: found.displayName, isGuest: false },
     });

@@ -42,6 +42,20 @@ type Insights = {
     feedbackCount: number;
     avgRating: number | null;
   };
+  analytics: {
+    totalEvents: number;
+    funnel: {
+      profileStarted: number;
+      personaBuilt: number;
+      agentRuns: number;
+      matchesSelected: number;
+      mutualAccepted: number;
+      datesProposed: number;
+      datesAccepted: number;
+      feedbackSubmitted: number;
+    };
+    recent: Array<{ id: string; name: string; createdAt: number }>;
+  };
   learnings: Array<{ at: number; text: string; candidateName?: string }>;
 };
 
@@ -403,6 +417,32 @@ export default function InsightsPage() {
               <p className="text-xs text-stone-400 mt-1">{s.label}</p>
             </div>
           ))}
+        </section>
+
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-700">Phase 1 funnel</h2>
+            <p className="text-xs text-stone-400 mt-1">
+              Server-side events across profile, agent runs, matches, dates, and feedback.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Profile signals", value: data.analytics.funnel.profileStarted },
+              { label: "Personas built", value: data.analytics.funnel.personaBuilt },
+              { label: "Runs started", value: data.analytics.funnel.agentRuns },
+              { label: "Matches picked", value: data.analytics.funnel.matchesSelected },
+              { label: "Mutual yeses", value: data.analytics.funnel.mutualAccepted },
+              { label: "Dates proposed", value: data.analytics.funnel.datesProposed },
+              { label: "Dates accepted", value: data.analytics.funnel.datesAccepted },
+              { label: "Feedback", value: data.analytics.funnel.feedbackSubmitted },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-stone-50 border border-stone-100 p-3">
+                <p className="text-xl font-bold text-stone-800">{item.value}</p>
+                <p className="text-[11px] text-stone-400 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
         {data.persona ? (

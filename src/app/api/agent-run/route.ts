@@ -17,6 +17,7 @@ import {
   saveMatchLifecycle,
   saveProposal,
   saveRun,
+  trackEvent,
 } from "@/lib/store";
 import { checkDealbreakerPair } from "@/lib/agent/scriptedEngine";
 import { getEngine } from "@/lib/agent/llmEngine";
@@ -200,6 +201,11 @@ export async function GET() {
   const me = profile.persona;
   publishUserCandidateProfile(user.id);
   const candidates = getMarketplaceCandidates(user.id, me, settings.poolSize);
+  trackEvent(user.id, "agent_run_started", {
+    candidateCount: candidates.length,
+    threshold,
+    poolSize: settings.poolSize,
+  });
   const engine = await getEngine();
   const encoder = new TextEncoder();
   const reports: Record<string, MatchReport> = {};
@@ -251,12 +257,18 @@ export async function GET() {
           message:
             "No one cleared your dealbreakers this round. Try loosening a filter or widening your search radius.",
         });
-        saveRun(userId, {
+        const run = saveRun(userId, {
           id: newRunId(),
           createdAt: Date.now(),
           candidates,
           reports: {},
           qualifiedIds: [],
+          bestScore: 0,
+        });
+        trackEvent(userId, "agent_run_completed", {
+          runId: run.id,
+          candidateCount: candidates.length,
+          qualifiedCount: 0,
           bestScore: 0,
         });
         controller.close();
@@ -294,13 +306,19 @@ export async function GET() {
       results.sort((a, b) => b.report.score.overall - a.report.score.overall);
       const qualified = results.filter((r) => r.report.score.overall > threshold);
 
-      saveRun(userId, {
+      const run = saveRun(userId, {
         id: newRunId(),
         createdAt: Date.now(),
         candidates,
         reports,
         qualifiedIds: qualified.map((r) => r.candidate.id),
         bestScore: results[0]?.report.score.overall ?? 0,
+      });
+      trackEvent(userId, "agent_run_completed", {
+        runId: run.id,
+        candidateCount: candidates.length,
+        qualifiedCount: qualified.length,
+        bestScore: run.bestScore,
       });
 
       // ── Phase 3: Human-paced agent conversations with everyone who passed ──
@@ -527,6 +545,11 @@ export async function POST(req: Request) {
     }
 
     const candidateProfile = getCandidateProfile(candidate.id);
+    trackEvent(user.id, "match_selected", {
+      runId: run.id,
+      candidateId: candidate.id,
+      score: report.score.overall,
+    });
     const requiresConsent = Boolean(candidateProfile?.ownerUserId);
     const now = Date.now();
     const lifecycle = saveMatchLifecycle({
@@ -544,6 +567,10 @@ export async function POST(req: Request) {
     });
 
     if (requiresConsent) {
+      trackEvent(user.id, "mutual_interest_pending", {
+        lifecycleId: lifecycle.id,
+        candidateId: candidate.id,
+      });
       addNotification(user.id, {
         type: "agent_update",
         title: `Interest sent to ${candidate.persona.displayName}`,
@@ -582,6 +609,12 @@ export async function POST(req: Request) {
     };
 
     saveProposal(user.id, proposal);
+    trackEvent(user.id, "date_proposed", {
+      proposalId: proposal.proposalId,
+      candidateId: candidate.id,
+      score: report.score.overall,
+      consentRequired: false,
+    });
     saveMatchLifecycle({
       ...lifecycle,
       proposalId: proposal.proposalId,
@@ -605,6 +638,10 @@ export async function POST(req: Request) {
     }
     proposal.status = response;
     saveProposal(user.id, proposal);
+    trackEvent(user.id, response === "accepted" ? "date_accepted" : "date_declined", {
+      proposalId: proposal.proposalId,
+      candidateId: proposal.candidateId ?? null,
+    });
     if (proposal.candidateId) {
       const lifecycle = getMatchLifecycleForCandidate(user.id, proposal.candidateId);
       if (lifecycle) {

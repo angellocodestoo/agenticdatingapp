@@ -214,6 +214,33 @@ export type SafetyEvent = {
   createdAt: number;
 };
 
+export type AnalyticsEventName =
+  | "signup_completed"
+  | "login_completed"
+  | "profile_source_connected"
+  | "profile_basics_saved"
+  | "persona_built"
+  | "persona_updated"
+  | "agent_run_started"
+  | "agent_run_completed"
+  | "match_selected"
+  | "mutual_interest_pending"
+  | "mutual_interest_accepted"
+  | "mutual_interest_declined"
+  | "date_proposed"
+  | "date_accepted"
+  | "date_declined"
+  | "feedback_submitted"
+  | "safety_action_created";
+
+export type AnalyticsEvent = {
+  id: string;
+  userId: string;
+  name: AnalyticsEventName;
+  properties: Record<string, unknown>;
+  createdAt: number;
+};
+
 export type CallTopic = {
   kind: "fun" | "philosophical";
   prompt: string;
