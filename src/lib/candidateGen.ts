@@ -119,11 +119,17 @@ export function generateCandidates(me: Persona, count = 5): Candidate[] {
     dealbreakers: me.dealbreakers,
   });
   const sampleAge = (): number => {
-    if (Math.random() < 0.75) {
-      // Triangular-ish around the window center.
+    const r = Math.random();
+    if (r < 0.5) {
+      // Cluster around the sweet spot.
       const spread = Math.max(1, (window.max - window.min) / 2);
       const offset = (Math.random() + Math.random() - 1) * spread;
       return Math.round(Math.min(window.max, Math.max(window.min, window.center + offset)));
+    }
+    if (r < 0.85) {
+      // Uniform across the full window so the edges genuinely occur —
+      // a 25-36 window should actually surface 25-year-olds.
+      return window.min + Math.floor(Math.random() * (window.max - window.min + 1));
     }
     // Outside the window: 1-4 years past an edge.
     const past = 1 + Math.floor(Math.random() * 4);
