@@ -24,10 +24,11 @@ import { getEngine } from "@/lib/agent/llmEngine";
 import { enforceRateLimit } from "@/lib/guardrails";
 import { getMarketplaceCandidates } from "@/lib/marketplace";
 import {
-  getMockFreeBusy,
-  getVenueRecommendation,
-  getMockMaskedNumber,
-} from "@/lib/integrations/mock";
+  availabilityProvider,
+  logisticsProviderNames,
+  maskedCallProvider,
+  venueProvider,
+} from "@/lib/logisticsProviders";
 import type {
   CallTopic,
   Candidate,
@@ -600,7 +601,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const slots = getMockFreeBusy();
+    const slots = availabilityProvider.getFreeBusy();
     const slot =
       slots.find((s) => {
         const days = (new Date(s.start).getTime() - Date.now()) / 86400000;
@@ -608,7 +609,7 @@ export async function POST(req: NextRequest) {
       }) ?? slots[slots.length - 1] ?? slots[0];
 
     const sharedInterests = [...me.interests, ...candidate.persona.interests];
-    const venue = getVenueRecommendation(sharedInterests);
+    const venue = venueProvider.recommend(sharedInterests);
 
     const proposal: DateProposal = {
       proposalId: `dp_${uid()}`,
@@ -641,6 +642,7 @@ export async function POST(req: NextRequest) {
       proposal,
       lifecycle: { ...lifecycle, proposalId: proposal.proposalId, status: "date_proposed" },
       venueWhy: venue.why,
+      providers: logisticsProviderNames(),
       candidateName: candidate.persona.displayName,
       report,
     });
@@ -688,8 +690,8 @@ export async function POST(req: NextRequest) {
           end: end.toISOString(),
           timezone: "America/New_York",
         },
-        maskedNumberA: getMockMaskedNumber("run_a"),
-        maskedNumberB: getMockMaskedNumber("run_b"),
+        maskedNumberA: maskedCallProvider.getMaskedNumber("run_a"),
+        maskedNumberB: maskedCallProvider.getMaskedNumber("run_b"),
         status: "scheduled",
         topics,
       };

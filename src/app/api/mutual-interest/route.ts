@@ -10,7 +10,11 @@ import {
   saveProposal,
   trackEvent,
 } from "@/lib/store";
-import { getMockFreeBusy, getVenueRecommendation } from "@/lib/integrations/mock";
+import {
+  availabilityProvider,
+  logisticsProviderNames,
+  venueProvider,
+} from "@/lib/logisticsProviders";
 import type { DateProposal } from "@/lib/types";
 
 function uid() {
@@ -30,13 +34,13 @@ function proposalFor(record: ReturnType<typeof getIncomingMatchRequests>[number]
   const me = profile.persona;
   if (!run || !candidate || !report || !me) return { error: "Original match context not found" };
 
-  const slots = getMockFreeBusy();
+  const slots = availabilityProvider.getFreeBusy();
   const slot =
     slots.find((s) => {
       const days = (new Date(s.start).getTime() - Date.now()) / 86400000;
       return days >= 8;
     }) ?? slots[slots.length - 1] ?? slots[0];
-  const venue = getVenueRecommendation([...me.interests, ...candidate.persona.interests]);
+  const venue = venueProvider.recommend([...me.interests, ...candidate.persona.interests]);
 
   return {
     candidateName: candidate.persona.displayName,
@@ -152,6 +156,7 @@ export async function POST(req: NextRequest) {
       request: updated,
       proposal: result.proposal,
       venueWhy: result.venueWhy,
+      providers: logisticsProviderNames(),
     });
   }
 

@@ -782,8 +782,8 @@ export const scriptedEngine: AgentEngine = {
 
     const venueInterests = [...sharedInterests, ...me.interests, ...them.interests];
 
-    const { getVenueRecommendation } = await import("@/lib/integrations/mock");
-    const venue = getVenueRecommendation(venueInterests);
+    const { venueProvider } = await import("@/lib/logisticsProviders");
+    const venue = venueProvider.recommend(venueInterests);
 
     const report: MatchReport = {
       matchId: `m_${uid()}`,

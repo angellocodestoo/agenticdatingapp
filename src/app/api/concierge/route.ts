@@ -10,10 +10,10 @@ import {
   saveProposal,
 } from "@/lib/store";
 import {
-  getMockFreeBusy,
-  getVenueRecommendation,
-  getMockMaskedNumber,
-} from "@/lib/integrations/mock";
+  availabilityProvider,
+  maskedCallProvider,
+  venueProvider,
+} from "@/lib/logisticsProviders";
 import type { DateProposal, WarmupCall } from "@/lib/types";
 
 function uid() {
@@ -59,14 +59,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const slots = getMockFreeBusy();
+    const slots = availabilityProvider.getFreeBusy();
     const slot = slots[0];
 
     const sharedInterests = [
       ...(profile.persona?.interests ?? []),
       ...candidate.persona.interests,
     ];
-    const venue = getVenueRecommendation(sharedInterests);
+    const venue = venueProvider.recommend(sharedInterests);
 
     const proposal: DateProposal = {
       proposalId: `dp_${uid()}`,
@@ -96,7 +96,8 @@ export async function POST(req: NextRequest) {
     saveProposal(user.id, proposal);
 
     if (response === "accepted") {
-      const slot = getMockFreeBusy()[1] ?? getMockFreeBusy()[0];
+      const slots = availabilityProvider.getFreeBusy();
+      const slot = slots[1] ?? slots[0];
       const callSlot = { ...slot };
       const start = new Date(callSlot.start);
       start.setDate(start.getDate() - 1);
@@ -112,8 +113,8 @@ export async function POST(req: NextRequest) {
           end: end.toISOString(),
           timezone: "America/New_York",
         },
-        maskedNumberA: getMockMaskedNumber("persona_a"),
-        maskedNumberB: getMockMaskedNumber("persona_b"),
+        maskedNumberA: maskedCallProvider.getMaskedNumber("persona_a"),
+        maskedNumberB: maskedCallProvider.getMaskedNumber("persona_b"),
         status: "scheduled",
         topics: [],
       };
