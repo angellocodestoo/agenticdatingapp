@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import {
   addNotification,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/store";
 import { checkDealbreakerPair } from "@/lib/agent/scriptedEngine";
 import { getEngine } from "@/lib/agent/llmEngine";
+import { enforceRateLimit } from "@/lib/guardrails";
 import { getMarketplaceCandidates } from "@/lib/marketplace";
 import {
   getMockFreeBusy,
@@ -171,8 +172,15 @@ function generateCallTopics(me: Persona, them: Persona): CallTopic[] {
   ];
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const user = await requireUser();
+  const limited = enforceRateLimit(
+    req,
+    "agent_run",
+    { limit: 8, windowMs: 60 * 60 * 1000 },
+    user.id
+  );
+  if (limited) return limited;
   const profile = getProfile(user.id);
 
   if (!profile.persona) {
@@ -507,8 +515,15 @@ function scheduleWarmupCall(dateStartIso: string): {
   return { start: chosen, end, reason };
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const user = await requireUser();
+  const limited = enforceRateLimit(
+    req,
+    "agent_action",
+    { limit: 40, windowMs: 10 * 60 * 1000 },
+    user.id
+  );
+  if (limited) return limited;
   const body = await req.json();
   const { action, proposalId, response, candidateId } = body;
 

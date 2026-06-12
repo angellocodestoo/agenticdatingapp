@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import fs from "node:fs";
 import { requireUser } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/guardrails";
 import { getProfile, updateProfile } from "@/lib/store";
 import type { UserPhoto } from "@/lib/types";
 
@@ -22,6 +23,13 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
+  const limited = enforceRateLimit(
+    req,
+    "photo_upload",
+    { limit: 20, windowMs: 60 * 60 * 1000 },
+    user.id
+  );
+  if (limited) return limited;
   const contentType = req.headers.get("content-type") ?? "";
 
   // JSON body → management actions (make primary, delete handled below in DELETE).

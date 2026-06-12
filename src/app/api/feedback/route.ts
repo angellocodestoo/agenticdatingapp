@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { enforceRateLimit, moderateText } from "@/lib/guardrails";
 import {
   addNotification,
   getFeedback,
@@ -119,6 +120,13 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
+  const limited = enforceRateLimit(
+    req,
+    "feedback",
+    { limit: 20, windowMs: 60 * 60 * 1000 },
+    user.id
+  );
+  if (limited) return limited;
   const body = await req.json();
   const proposalId = String(body.proposalId ?? "");
 
@@ -138,6 +146,10 @@ export async function POST(req: NextRequest) {
   const chemistry = clamp(body.chemistry);
   const conversation = clamp(body.conversation);
   const wouldSeeAgain = Boolean(body.wouldSeeAgain);
+  const notesCheck = moderateText(body.notes ?? "");
+  if (!notesCheck.ok) {
+    return NextResponse.json({ error: notesCheck.error }, { status: 400 });
+  }
 
   // Locate the candidate so the agent can learn from their profile.
   const runs = getRuns(user.id, 50);

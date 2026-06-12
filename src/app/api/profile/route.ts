@@ -7,6 +7,7 @@ import {
   trackEvent,
   updateProfile,
 } from "@/lib/store";
+import { enforceRateLimit, moderateText } from "@/lib/guardrails";
 import { getMockSourceData } from "@/lib/integrations/mock";
 import { getEngine } from "@/lib/agent/llmEngine";
 import type { ConnectedSource, UserArtifact } from "@/lib/types";
@@ -24,6 +25,16 @@ export async function POST(req: NextRequest) {
   const user = await requireUser();
   const body = await req.json();
   const action = body.action as string;
+  const limited = enforceRateLimit(
+    req,
+    action === "build_persona" || action === "import_ai_memory" ? "profile_build" : "profile_write",
+    {
+      limit: action === "build_persona" || action === "import_ai_memory" ? 12 : 80,
+      windowMs: action === "build_persona" || action === "import_ai_memory" ? 60 * 60 * 1000 : 10 * 60 * 1000,
+    },
+    user.id
+  );
+  if (limited) return limited;
 
   if (action === "connect_source") {
     const source = body.source as ConnectedSource;
@@ -54,10 +65,18 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "add_artifact") {
+    const content = String(body.content ?? "").trim();
+    const contentCheck = moderateText(content);
+    if (!contentCheck.ok) {
+      return NextResponse.json({ error: contentCheck.error }, { status: 400 });
+    }
+    if (content.length < 2) {
+      return NextResponse.json({ error: "Add a little more detail first." }, { status: 400 });
+    }
     const artifact: UserArtifact = {
       id: `art_${Date.now()}`,
-      label: body.label ?? "Personal note",
-      content: body.content,
+      label: body.label ? String(body.label).slice(0, 80) : "Personal note",
+      content: content.slice(0, 10000),
       addedAt: Date.now(),
     };
     const profile = getProfile(user.id);
@@ -117,6 +136,10 @@ export async function POST(req: NextRequest) {
   if (action === "import_ai_memory") {
     const provider = String(body.provider ?? "Claude");
     const content = String(body.content ?? "").trim();
+    const contentCheck = moderateText(content);
+    if (!contentCheck.ok) {
+      return NextResponse.json({ error: contentCheck.error }, { status: 400 });
+    }
     if (content.length < 40) {
       return NextResponse.json(
         { error: "That looks too short — paste the full summary your AI gave you." },

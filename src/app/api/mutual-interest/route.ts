@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/guardrails";
 import {
   addNotification,
   getIncomingMatchRequests,
@@ -78,6 +79,13 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
+  const limited = enforceRateLimit(
+    req,
+    "mutual_interest",
+    { limit: 40, windowMs: 10 * 60 * 1000 },
+    user.id
+  );
+  if (limited) return limited;
   const body = await req.json();
   const id = String(body.id ?? "");
   const decision = String(body.decision ?? "");

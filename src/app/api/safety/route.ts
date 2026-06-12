@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { enforceRateLimit, moderateText } from "@/lib/guardrails";
 import { getCandidateProfile, saveSafetyEvent, trackEvent } from "@/lib/store";
 
 export async function POST(req: NextRequest) {
   const user = await requireUser();
+  const limited = enforceRateLimit(
+    req,
+    "safety",
+    { limit: 30, windowMs: 60 * 60 * 1000 },
+    user.id
+  );
+  if (limited) return limited;
   const body = await req.json();
   const candidateId = String(body.candidateId ?? "");
   const action = String(body.action ?? "");
   const reason = body.reason ? String(body.reason).slice(0, 120) : undefined;
   const notes = body.notes ? String(body.notes).slice(0, 1000) : undefined;
+  const textCheck = moderateText(`${reason ?? ""}\n${notes ?? ""}`);
+  if (!textCheck.ok) {
+    return NextResponse.json({ error: textCheck.error }, { status: 400 });
+  }
 
   if (!candidateId) {
     return NextResponse.json({ error: "candidateId required" }, { status: 400 });

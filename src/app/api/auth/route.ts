@@ -10,6 +10,7 @@ import {
   requireUser,
   verifyPassword,
 } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/guardrails";
 import { trackEvent } from "@/lib/store";
 
 export async function GET() {
@@ -26,6 +27,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, "auth", { limit: 12, windowMs: 10 * 60 * 1000 });
+  if (limited) return limited;
   const body = await req.json();
   const action = body.action as string;
 
