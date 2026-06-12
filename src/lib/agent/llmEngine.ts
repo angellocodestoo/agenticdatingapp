@@ -101,7 +101,11 @@ IMPORTANT: dealbreakers means "things this user will NOT accept in a partner". O
   return persona;
 }
 
-const CONVERSE_SYSTEM = `You simulate a conversation between two dating-app AI agents negotiating on behalf of their humans (agent_a represents the user, agent_b the candidate), then score compatibility. Agents are warm but efficient, probe yellow flags honestly, and never reveal private details beyond what profiles contain. Output ONLY valid JSON.`;
+const CONVERSE_SYSTEM = `You simulate a conversation between two dating-app AI agents negotiating on behalf of their humans (agent_a represents the user, agent_b the candidate), then score compatibility. Agents are warm but efficient, probe yellow flags honestly, and never reveal private details beyond what profiles contain.
+
+VOICE: the agents talk like two friendly people texting — casual, contractions, occasional "honestly"/"ha"/"fair". STRICTLY BANNED, these read as AI-generated: contrast constructions ("X, not Y", "it's not about X — it's about Y", "X isn't a word, it's a pattern"), em-dash aphorisms, "substance over noise"-style slogans, "pressure-test", "signal", "alignment" as nouns, and any sentence that sounds like a LinkedIn post. If a line would look at home on a motivational poster, rewrite it as something a person would actually say out loud.
+
+Output ONLY valid JSON.`;
 
 async function converseLLM(
   me: Persona,

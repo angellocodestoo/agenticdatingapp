@@ -35,6 +35,8 @@ const ALL_DEALBREAKERS: { key: DealbreakerKey; label: string }[] = [
   { key: "non_monogamy", label: "Open/non-monogamous" },
   { key: "worklife_incompatible", label: "Work–life incompatibility" },
   { key: "distance_too_far", label: "Lives too far away" },
+  { key: "has_kids", label: "Has kids" },
+  { key: "divorced", label: "Divorced" },
 ];
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {

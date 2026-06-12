@@ -95,6 +95,7 @@ const YELLOW_FLAGS: Array<{ key: YellowFlagKey; note: string }> = [
 
 const DEALBREAKERS: DealbreakerKey[] = [
   "non_monogamy", "smoking", "wants_kids_no", "heavy_drinking",
+  "has_kids", "divorced",
 ];
 
 /**

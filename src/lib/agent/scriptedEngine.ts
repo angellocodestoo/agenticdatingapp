@@ -134,6 +134,12 @@ export function checkDealbreaker(
     if (db.key === "heavy_drinking" && theirBreakers.includes("heavy_drinking")) {
       return "Dealbreaker: drinking habits are a hard mismatch.";
     }
+    if (db.key === "has_kids" && theirBreakers.includes("has_kids")) {
+      return "Dealbreaker: one person has kids from a previous relationship.";
+    }
+    if (db.key === "divorced" && theirBreakers.includes("divorced")) {
+      return "Dealbreaker: one person has been married before.";
+    }
   }
   return null;
 }
@@ -197,17 +203,17 @@ function buildConversation(
   // Opener
   A(
     rand([
-      `Hi! I represent ${me.displayName}. They care most about ${myHigh.join(", ") || "depth and growth"}. What's ${them.displayName} actually looking for right now?`,
-      `Hey — ${me.displayName}'s agent here. Before anything else: ${me.displayName} is after genuine alignment on ${myHigh.slice(0, 2).join(" and ") || "values"}. Where's ${them.displayName}'s head at?`,
-      `Good to meet you. ${me.displayName} isn't looking for a pen pal — they want something real, anchored in ${myHigh[0] ?? "shared values"}. What matters to ${them.displayName}?`,
+      `Hey! ${me.displayName}'s agent here. Quick version: they care a lot about ${myHigh.join(", ") || "finding something real"}. What's ${them.displayName} looking for these days?`,
+      `Hi, repping ${me.displayName}. Before we get into the details — what actually matters to ${them.displayName} right now?`,
+      `Good to meet you. Honest question up front: where's ${them.displayName} at with dating? ${me.displayName} is pretty serious about finding someone.`,
     ]),
     1200
   );
   B(
     rand([
-      `Likewise. ${them.displayName} wants a partner who's ${theirHigh.join(" and ") || "kind and driven"} — something built to last, not surface-level.`,
-      `${them.displayName} is done with casual. They value ${theirHigh.slice(0, 2).join(" and ") || "honesty and growth"} and want a real partnership.`,
-      `Straight answer: ${them.displayName} is looking for depth. ${theirHigh[0] ? `${theirHigh[0][0].toUpperCase()}${theirHigh[0].slice(1)} is non-negotiable for them.` : "Substance over noise."}`,
+      `Same energy over here. ${them.displayName} keeps coming back to ${theirHigh.join(" and ") || "kindness and drive"}. They've done the casual thing and they're over it.`,
+      `${them.displayName} wants something that lasts. Big on ${theirHigh.slice(0, 2).join(" and ") || "honesty and growth"}.`,
+      `Honestly? They're tired of small-talk dating. ${theirHigh[0] ? `${theirHigh[0][0].toUpperCase()}${theirHigh[0].slice(1)} matters a lot to them.` : `They want the real thing.`}`,
     ]),
     1500
   );
@@ -217,37 +223,38 @@ function buildConversation(
     const ints = sharedInterests.slice(0, 2).join(" and ");
     A(
       rand([
-        `Nice overlap — they both light up around ${ints}. Does ${them.displayName} actually make time for that, or is it aspirational?`,
-        `I noticed shared ground in ${ints}. Real part of ${them.displayName}'s life, or just on the profile?`,
-        `${ints} came up on both sides. How central is that to ${them.displayName}'s week?`,
+        `Oh nice — they're both into ${ints}. Does ${them.displayName} actually get out and do that, or is it more of a profile thing?`,
+        `I see ${ints} on both sides, which helps. How often does that actually happen in real life?`,
+        `${ints} came up on both sides. Is that a weekly thing for ${them.displayName} or more like once a summer?`,
       ])
     );
     B(
       rand([
-        `Very real. ${them.displayName} guards that time — the calendar bends around it, not the reverse.`,
-        `It's genuine. ${them.displayName} says it's how they stay grounded when work gets loud.`,
-        `Not aspirational at all — it's a weekly ritual for ${them.displayName}.`,
+        `Oh it's real. Most weekends, honestly. You can check the calendar receipts.`,
+        `Totally genuine. It's how they decompress when work gets crazy.`,
+        `Ha, yeah, it's a regular thing. Probably too regular if you ask their friends.`,
       ])
     );
   }
 
   // Yellow flags — each probe ends with the agent adjusting its estimate.
+  // Cycle the probe phrasings so back-to-back flags don't repeat verbatim.
+  const probeOpeners = [
+    (label: string, note: string) => `Okay, I gotta ask about ${label}. ${note} How big a deal is that day to day?`,
+    (label: string, note: string) => `One thing came up on our side: ${label}. ${note} What's the real story there?`,
+    (label: string, note: string) => `Heads up, ${label} showed up as a question mark for us. ${note} Talk me through it?`,
+  ];
+  const openerStart = Math.floor(Math.random() * probeOpeners.length);
+  let probeIdx = 0;
   for (const { flag, resolved, delta } of resolutions) {
     const label = flag.key.replace(/_/g, " ");
-    A(
-      rand([
-        `Let me probe a possible yellow flag — ${label}. ${flag.note ?? ""} How does ${them.displayName} handle it?`,
-        `One thing I want to pressure-test: ${label}. ${flag.note ?? ""} Honest read?`,
-        `Flag worth raising: ${label}. ${flag.note ?? ""} Is this a real friction point for ${them.displayName}?`,
-      ]),
-      1900
-    );
+    A(probeOpeners[(openerStart + probeIdx++) % probeOpeners.length](label, flag.note ?? ""), 1900);
     if (resolved) {
       B(
         rand([
-          `Honestly, that aligns well here. On paper it reads as a concern, but in practice it creates complementary rhythm. Context beats the label.`,
-          `Less of an issue than it looks. ${them.displayName} has thought about this a lot — it actually fits ${me.displayName}'s style.`,
-          `That one resolves itself. Their patterns are compatible — it's a green light, not a yellow one, once you see the detail.`,
+          `Honestly it sounds worse on paper than it plays out. The way their weeks actually run, it fits ${me.displayName}'s style pretty well.`,
+          `Fair question. They've thought about it a lot and these days it's a much smaller thing than it looks.`,
+          `I get why you'd ask, but their routines line up well here. I wouldn't lose sleep over it.`,
         ])
       );
       turns.push({
@@ -258,9 +265,9 @@ function buildConversation(
     } else {
       B(
         rand([
-          `Fair flag. ${them.displayName} won't pretend it disappears — it'd take real communication, and they're open to that.`,
-          `That's legitimate. It's workable, but only with intention on both sides. ${them.displayName} knows that.`,
-          `Won't sugarcoat it — this needs explicit conversation. ${them.displayName} is willing, but it's not automatic.`,
+          `I'll be straight with you — it's a real thing. ${them.displayName} knows it and they're happy to talk about it, but it won't vanish overnight.`,
+          `Yeah, that one's fair. It would take some actual communication on both sides. They know that.`,
+          `Won't pretend otherwise, it comes up. They're upfront about it, which counts for something.`,
         ])
       );
       turns.push({
@@ -276,15 +283,15 @@ function buildConversation(
   if (valOverlap.length >= 2) {
     A(
       rand([
-        `Both profiles emphasize ${valOverlap.slice(0, 2).join(" and ")}. How does ${them.displayName} actually live those?`,
-        `Strong shared signal on ${valOverlap.slice(0, 2).join(" and ")}. Give me the day-to-day, not the bio version.`,
+        `They both rank ${valOverlap.slice(0, 2).join(" and ")} high. What does that look like for ${them.displayName} on a normal week?`,
+        `Good overlap on ${valOverlap.slice(0, 2).join(" and ")}. Can you give me an actual example? Everyone says these things.`,
       ]),
       2000
     );
     B(
       rand([
-        `${valOverlap[0]} shows up in how ${them.displayName} treats people — even strangers. ${valOverlap[1] ? `And ${valOverlap[1]} drove a real career choice: they left a bigger paycheck for work that mattered.` : ""}`,
-        `For ${them.displayName}, ${valOverlap[0]} isn't a word — it's a pattern. ${valOverlap[1] ? `${valOverlap[1].charAt(0).toUpperCase()}${valOverlap[1].slice(1)} too; it shapes who they spend time with.` : ""}`,
+        `Sure — with ${valOverlap[0]}, it's the everyday stuff. How they treat waiters, how they show up when a friend's having a rough week. ${valOverlap[1] ? `And they made a real career call over ${valOverlap[1]} a couple years back, took the smaller paycheck.` : ""}`,
+        `Fair, ha. Honestly the ${valOverlap[0]} thing is just obvious when you're around them. ${valOverlap[1] ? `${valOverlap[1].charAt(0).toUpperCase()}${valOverlap[1].slice(1)} too — it shapes who they spend their time with.` : ""}`,
       ]),
       2000
     );
@@ -293,15 +300,15 @@ function buildConversation(
   // Close
   A(
     rand([
-      `I've got what I need. The alignment is substantive and the friction looks manageable. Synthesizing the report now.`,
-      `Good conversation. Strong signal on the things that matter — putting together the compatibility read.`,
+      `Cool, I've got a good picture. There's a lot here that works. Let me write this up.`,
+      `This was helpful, thanks. I like what I'm seeing honestly. Writing up my notes now.`,
     ]),
     1500
   );
   B(
     rand([
-      `Agreed — ${them.displayName}'s agent sees a real match here. Over to the concierge.`,
-      `Same read on our end. This one's worth pursuing. Handing off.`,
+      `Same. Good feeling about this one. Talk soon.`,
+      `Agreed, feels worth a shot. I'll give ${them.displayName} the good news.`,
     ]),
     1200
   );

@@ -30,7 +30,9 @@ export type DealbreakerKey =
   | "religion_mismatch"
   | "non_monogamy"
   | "worklife_incompatible"
-  | "distance_too_far";
+  | "distance_too_far"
+  | "has_kids"
+  | "divorced";
 
 export type YellowFlagKey =
   | "busy_schedule"
