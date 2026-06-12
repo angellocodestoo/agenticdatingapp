@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import PhotoManager from "@/components/PhotoManager";
 import type {
   UserProfileState,
   PersonaAssumption,
@@ -182,6 +183,8 @@ export default function PersonaPage() {
             </div>
           </div>
         </section>
+
+        <PhotoManager />
 
         {/* Agent assumptions */}
         <section className="space-y-3">

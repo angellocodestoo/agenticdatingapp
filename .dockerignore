@@ -1,0 +1,9 @@
+node_modules
+.next
+data
+.git
+.claude
+_local-python-scaffold-backup
+*.md
+.env*
+!.env.example

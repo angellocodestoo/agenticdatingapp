@@ -187,6 +187,13 @@ export type WarmupCall = {
   topics: CallTopic[];
 };
 
+export type UserPhoto = {
+  id: string;
+  /** Stored filename under data/uploads. */
+  filename: string;
+  addedAt: number;
+};
+
 export type UserArtifact = {
   id: string;
   label: string;
@@ -209,6 +216,15 @@ export type UserProfileState = {
     wantsKids: KidsIntent;
   };
   artifacts: UserArtifact[];
+  /** Uploaded profile photos; the first is the primary. */
+  photos?: UserPhoto[];
+  /** Real Spotify listening data from OAuth; overrides the mock when present. */
+  spotifyData?: {
+    topArtists: string[];
+    topGenres: string[];
+    listeningMood: string;
+    fetchedAt: number;
+  };
   persona?: Persona;
   lastProfiledAt?: number;
 };

@@ -62,8 +62,20 @@ export default function OnboardingPage() {
 
   async function toggleSource(source: ConnectedSource) {
     if (!profile) return;
-    setLoading(true);
     const connected = profile.connectedSources.includes(source);
+
+    // Spotify uses real OAuth when the server is configured for it.
+    if (source === "spotify" && !connected) {
+      const status = await fetch("/api/connect/spotify?status=1")
+        .then((r) => r.json())
+        .catch(() => null);
+      if (status?.configured) {
+        window.location.assign("/api/connect/spotify");
+        return;
+      }
+    }
+
+    setLoading(true);
     const res = await fetch("/api/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

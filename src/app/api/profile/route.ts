@@ -113,6 +113,8 @@ export async function POST(req: NextRequest) {
       updated.fitnessProvider,
       updated.aiProvider
     );
+    // Real OAuth data beats the mock when the user actually connected.
+    if (updated.spotifyData) sources.spotify = updated.spotifyData;
     const engine = await getEngine();
     const persona = await engine.buildPersona({
       sources,
@@ -131,6 +133,7 @@ export async function POST(req: NextRequest) {
       profile.fitnessProvider,
       profile.aiProvider
     );
+    if (profile.spotifyData) sources.spotify = profile.spotifyData;
     const artifactTexts = (profile.artifacts ?? []).map((a) => a.content);
     const engine = await getEngine();
     const persona = await engine.buildPersona({
