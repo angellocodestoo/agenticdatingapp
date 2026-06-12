@@ -28,7 +28,7 @@ export const AI_PROVIDERS = ["Claude", "ChatGPT", "Gemini", "Perplexity"];
 
 /**
  * The prompt a user pastes into their own AI assistant. The assistant's reply
- * is what they paste back into Soulmate. Mirrors Anthropic's memory-import
+ * is what they paste back into Red String. Mirrors Anthropic's memory-import
  * pattern: no OAuth or export files — works with any assistant on day one.
  */
 export const AI_IMPORT_PROMPT = `Please summarize everything you know about me from our past conversations as a structured list I can share with another service. Include: my values and what matters most to me, my lifestyle and daily rhythms, my interests and hobbies, my relationship goals and how I approach the people I care about, my health and wellness context, and any recurring questions or themes I come back to. Be honest and specific — write it as a portrait of who I actually am, not a flattering bio. Leave out anything you think I'd consider too private to share.`;

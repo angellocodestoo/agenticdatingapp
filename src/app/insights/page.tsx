@@ -488,7 +488,7 @@ export default function InsightsPage() {
             <h2 className="text-sm font-semibold text-stone-700">Match quality per run</h2>
             <div className="flex items-end gap-2 h-32">
               {data.scoreTrend.map((s, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <div key={i} className="flex-1 h-full flex flex-col items-center justify-end gap-1">
                   <span className="text-[10px] text-stone-400">{s.bestScore}</span>
                   <div
                     className={`w-full rounded-t-md ${

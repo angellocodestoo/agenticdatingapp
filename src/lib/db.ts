@@ -3,13 +3,22 @@ import path from "path";
 import fs from "fs";
 
 declare global {
-  var __soulmateDb: Database.Database | undefined;
+  var __redstringDb: Database.Database | undefined;
 }
 
 function open(): Database.Database {
   const dir = path.join(process.cwd(), "data");
   fs.mkdirSync(dir, { recursive: true });
-  const db = new Database(path.join(dir, "soulmate.db"));
+  // Migrate from the pre-rename database file if it exists.
+  const oldPath = path.join(dir, "soulmate.db");
+  const newPath = path.join(dir, "redstring.db");
+  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+    fs.renameSync(oldPath, newPath);
+    for (const suffix of ["-wal", "-shm"]) {
+      if (fs.existsSync(oldPath + suffix)) fs.renameSync(oldPath + suffix, newPath + suffix);
+    }
+  }
+  const db = new Database(newPath);
   db.pragma("journal_mode = WAL");
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -80,8 +89,8 @@ function open(): Database.Database {
 
 export function getDb(): Database.Database {
   // Reuse across hot reloads in dev to avoid exhausting file handles.
-  if (!globalThis.__soulmateDb) {
-    globalThis.__soulmateDb = open();
+  if (!globalThis.__redstringDb) {
+    globalThis.__redstringDb = open();
   }
-  return globalThis.__soulmateDb;
+  return globalThis.__redstringDb;
 }

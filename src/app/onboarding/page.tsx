@@ -109,7 +109,7 @@ export default function OnboardingPage() {
       <div className="max-w-xl mx-auto space-y-8">
         <div className="space-y-1">
           <Link href="/" className="text-xs text-rose-400 hover:text-rose-600 transition-colors">
-            ← Soulmate
+            ← Red String
           </Link>
           <h1 className="text-2xl font-semibold text-stone-900">Build your agent profile</h1>
           <p className="text-sm text-stone-500">

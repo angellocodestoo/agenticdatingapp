@@ -94,8 +94,16 @@ export default function AppNav() {
   return (
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-stone-100">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-6">
-        <Link href="/" className="font-bold text-rose-500 tracking-tight">
-          Soulmate
+        <Link href="/" className="flex items-center gap-1.5 font-bold text-red-600 tracking-tight">
+          <svg width="18" height="18" viewBox="0 0 34 34" fill="none" aria-hidden="true">
+            <path
+              d="M3 26 C 10 20, 8 12, 15 13 C 21 14, 20 21, 15 20 C 10 19, 13 11, 20 9 C 26 7, 29 10, 31 7"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </svg>
+          Red String
         </Link>
         <nav className="flex items-center gap-1 text-sm overflow-x-auto">
           {LINKS.map((l) => (

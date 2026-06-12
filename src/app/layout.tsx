@@ -6,8 +6,9 @@ import AppNav from "@/components/AppNav";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
-  title: "Soulmate — Agentic Dating",
-  description: "Let your agent find your person.",
+  title: "Red String — Fate, handled.",
+  description:
+    "An invisible thread already ties you to your person. Your agent follows it — learns who you are, talks to other agents, and only surfaces dates worth having.",
 };
 
 export default function RootLayout({
