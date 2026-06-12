@@ -6,6 +6,7 @@ import type {
   YellowFlagKey,
   DealbreakerKey,
 } from "@/lib/types";
+import { personaAge, preferredAgeWindow } from "@/lib/ageModel";
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -29,6 +30,12 @@ const NAMES = [
   "Nina", "Priya", "Zoe", "Lena", "Aria", "Quinn", "Sage", "Nora",
   "Iris", "Tessa", "Mia", "Lucia", "Hana", "Dahlia", "Esme", "Margot",
   "Camila", "Frankie", "Stella", "Daniela", "Cleo", "Juniper",
+];
+
+const MALE_NAMES = [
+  "Liam", "Noah", "Ethan", "Mateo", "Julian", "Marcus", "Adrian", "Theo",
+  "Caleb", "Dev", "Andre", "Felix", "Jonas", "Rafael", "Owen", "Miles",
+  "Dante", "Elias", "Hugo", "Nico", "Sam", "Aiden", "Lucas", "Gabriel",
 ];
 
 const HEADLINES = [
@@ -100,11 +107,40 @@ export function generateCandidates(me: Persona, count = 5): Candidate[] {
   const myValueKeys = me.values.map((v) => v.key);
   const myInterests = me.interests;
 
+  // Life-stage model: candidates are drawn from the user's modeled age window,
+  // not symmetrically around their own age. Most cluster near the sweet spot;
+  // a tail lands outside so the agent has real screening decisions to make.
+  const myAge = personaAge(me);
+  const window = preferredAgeWindow({
+    age: myAge,
+    gender: me.gender,
+    seeking: me.seeking,
+    wantsKids: me.wantsKids,
+    dealbreakers: me.dealbreakers,
+  });
+  const sampleAge = (): number => {
+    if (Math.random() < 0.75) {
+      // Triangular-ish around the window center.
+      const spread = Math.max(1, (window.max - window.min) / 2);
+      const offset = (Math.random() + Math.random() - 1) * spread;
+      return Math.round(Math.min(window.max, Math.max(window.min, window.center + offset)));
+    }
+    // Outside the window: 1-4 years past an edge.
+    const past = 1 + Math.floor(Math.random() * 4);
+    return Math.max(21, Math.random() < 0.5 ? window.min - past : window.max + past);
+  };
+
+  const candidateGender =
+    me.seeking === "men" ? "man" : me.seeking === "everyone"
+      ? (Math.random() < 0.5 ? "man" : "woman")
+      : "woman";
+  const namePool = candidateGender === "man" ? MALE_NAMES : NAMES;
+
   const usedNames = new Set<string>();
   const pickName = () => {
-    let n = pick(NAMES);
+    let n = pick(namePool);
     let guard = 0;
-    while (usedNames.has(n) && guard++ < 20) n = pick(NAMES);
+    while (usedNames.has(n) && guard++ < 20) n = pick(namePool);
     usedNames.add(n);
     return n;
   };
@@ -157,8 +193,17 @@ export function generateCandidates(me: Persona, count = 5): Candidate[] {
       interests = sample(INTEREST_POOL, 5);
       loc = pick(CITIES);
     }
-    const minAge = 28 + Math.floor(Math.random() * 6);
+    const age = sampleAge();
     const yellowFlags = sample(YELLOW_FLAGS, 1 + Math.floor(Math.random() * 2));
+
+    // Kids intent skews with the candidate's own life stage: late-20s/early-30s
+    // candidates mostly want kids or are open; it tapers with age.
+    const wantsKids: Persona["wantsKids"] =
+      age < 36
+        ? pick(["yes", "yes", "open", "open", "no"])
+        : age < 42
+          ? pick(["yes", "open", "open", "no"])
+          : pick(["open", "no", "no"]);
 
     // Occasionally give a candidate a dealbreaker trait (only matters if the
     // user set the matching dealbreaker).
@@ -172,7 +217,10 @@ export function generateCandidates(me: Persona, count = 5): Candidate[] {
       headline: pick(HEADLINES),
       bio: pick(BIOS),
       location: { ...loc, country: "US" },
-      ageRange: { min: minAge, max: minAge + 6 + Math.floor(Math.random() * 4) },
+      age,
+      gender: candidateGender,
+      wantsKids,
+      ageRange: { min: age - 1, max: age + 1 },
       scheduleStyle: strong ? me.scheduleStyle : pick(["structured", "flexible", "mixed"]),
       interests,
       values,

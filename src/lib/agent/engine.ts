@@ -10,6 +10,12 @@ export type BuildPersonaInput = {
   sources: MockSourceData;
   artifacts: string[];
   existingPersona?: Persona;
+  basics?: {
+    age: number;
+    gender: Persona["gender"];
+    seeking: Persona["seeking"];
+    wantsKids: Persona["wantsKids"];
+  };
 };
 
 export type ConverseOutput = {

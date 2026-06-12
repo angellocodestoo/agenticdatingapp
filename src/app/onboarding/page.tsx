@@ -15,6 +15,12 @@ export default function OnboardingPage() {
   const [buildingPersona, setBuildingPersona] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [fitnessProvider, setFitnessProvider] = useState("Strava");
+  const [basics, setBasics] = useState({
+    age: "" as string,
+    gender: "man",
+    seeking: "women",
+    wantsKids: "open",
+  });
 
   useEffect(() => {
     fetch("/api/profile")
@@ -22,9 +28,29 @@ export default function OnboardingPage() {
       .then((data) => {
         setProfile(data);
         if (data.fitnessProvider) setFitnessProvider(data.fitnessProvider);
+        if (data.basics) {
+          setBasics({
+            age: String(data.basics.age),
+            gender: data.basics.gender,
+            seeking: data.basics.seeking,
+            wantsKids: data.basics.wantsKids,
+          });
+        }
         setInitialized(true);
       });
   }, []);
+
+  async function saveBasics(patch: Partial<typeof basics>) {
+    const next = { ...basics, ...patch };
+    setBasics(next);
+    const age = Number(next.age);
+    if (!age || age < 18) return; // save once a real age is present
+    await fetch("/api/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_basics", ...next, age }),
+    });
+  }
 
   if (!initialized) {
     return (
@@ -78,6 +104,61 @@ export default function OnboardingPage() {
             Connect accounts so your agent can understand who you actually are. Low-lift — takes 30 seconds.
           </p>
         </div>
+
+        {/* Basics — drives life-stage matching */}
+        <section className="space-y-3">
+          <h2 className="text-xs font-medium text-stone-400 uppercase tracking-wide">Basics</h2>
+          <div className="bg-white rounded-xl border border-stone-200 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] text-stone-400">Age</label>
+              <input
+                type="number"
+                min={18}
+                max={99}
+                value={basics.age}
+                onChange={(e) => saveBasics({ age: e.target.value })}
+                placeholder="36"
+                className="w-full text-sm border border-stone-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-rose-300"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-stone-400">I&apos;m a</label>
+              <select
+                value={basics.gender}
+                onChange={(e) => saveBasics({ gender: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-rose-300"
+              >
+                <option value="man">Man</option>
+                <option value="woman">Woman</option>
+                <option value="nonbinary">Nonbinary</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-stone-400">Seeking</label>
+              <select
+                value={basics.seeking}
+                onChange={(e) => saveBasics({ seeking: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-rose-300"
+              >
+                <option value="women">Women</option>
+                <option value="men">Men</option>
+                <option value="everyone">Everyone</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-stone-400">Kids</label>
+              <select
+                value={basics.wantsKids}
+                onChange={(e) => saveBasics({ wantsKids: e.target.value })}
+                className="w-full text-sm border border-stone-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-rose-300"
+              >
+                <option value="yes">Want kids</option>
+                <option value="open">Open to kids</option>
+                <option value="no">Don&apos;t want kids</option>
+              </select>
+            </div>
+          </div>
+        </section>
 
         {/* Connected sources */}
         <section className="space-y-3">

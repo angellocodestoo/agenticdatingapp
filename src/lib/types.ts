@@ -69,11 +69,20 @@ export type PersonaAssumption = {
   userOverride?: string;
 };
 
+export type Gender = "man" | "woman" | "nonbinary";
+export type SeekingPreference = "men" | "women" | "everyone";
+export type KidsIntent = "yes" | "no" | "open";
+
 export type Persona = {
   id: string;
   displayName: string;
   headline: string;
   bio: string;
+  /** Concrete age; ageRange is kept for back-compat and display fallback. */
+  age?: number;
+  gender?: Gender;
+  seeking?: SeekingPreference;
+  wantsKids?: KidsIntent;
   location: {
     city: string;
     region?: string;
@@ -190,6 +199,13 @@ export type UserProfileState = {
   fitnessProvider?: string;
   /** Which assistant backs the "ai_assistant" slot (Claude, ChatGPT, …). */
   aiProvider?: string;
+  /** Demographic basics collected at onboarding; drive life-stage matching. */
+  basics?: {
+    age: number;
+    gender: Gender;
+    seeking: SeekingPreference;
+    wantsKids: KidsIntent;
+  };
   artifacts: UserArtifact[];
   persona?: Persona;
   lastProfiledAt?: number;

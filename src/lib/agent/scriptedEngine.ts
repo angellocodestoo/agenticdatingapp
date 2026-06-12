@@ -1,4 +1,5 @@
 import type { AgentEngine, BuildPersonaInput, ConverseOutput } from "./engine";
+import { ageAlignment, personaAge } from "@/lib/ageModel";
 import type {
   Persona,
   Candidate,
@@ -56,17 +57,29 @@ function scoreLifestyle(me: Persona, them: Persona): number {
   return clamp(score);
 }
 
-function scoreLogistics(me: Persona, them: Persona): number {
-  let score = 70;
-  const meAge = (me.ageRange.min + me.ageRange.max) / 2;
-  const themAge = (them.ageRange.min + them.ageRange.max) / 2;
-  if (Math.abs(meAge - themAge) <= 5) score += 20;
-  else if (Math.abs(meAge - themAge) <= 10) score += 10;
+function scoreLogistics(me: Persona, them: Persona): { score: number; ageNote: string } {
+  // Life-stage alignment carries most of the logistics weight: it models kids
+  // intent, maturity asymmetry, and the half-plus-seven guard (see lib/ageModel).
+  const alignment = ageAlignment(
+    {
+      age: personaAge(me),
+      gender: me.gender,
+      seeking: me.seeking,
+      wantsKids: me.wantsKids,
+      dealbreakers: me.dealbreakers,
+    },
+    personaAge(them)
+  );
+
   const sameCity =
     me.location.city.toLowerCase() === them.location.city.toLowerCase() ||
     me.location.region === them.location.region;
-  if (sameCity) score += 10;
-  return clamp(score);
+  const locationScore = sameCity ? 100 : 60;
+
+  return {
+    score: clamp(Math.round(alignment.score * 0.7 + locationScore * 0.3)),
+    ageNote: alignment.note,
+  };
 }
 
 /** Returns a rejection reason when my dealbreakers conflict with their profile. */
@@ -316,7 +329,7 @@ function firstSentence(text: string): string {
 }
 
 function buildPersonaFromSources(input: BuildPersonaInput): Persona {
-  const { sources, artifacts, existingPersona } = input;
+  const { sources, artifacts, existingPersona, basics } = input;
 
   const interests: string[] = [];
   const assumptions: PersonaAssumption[] = [];
@@ -550,7 +563,13 @@ function buildPersonaFromSources(input: BuildPersonaInput): Persona {
       : "Thoughtful, driven, and building something meaningful.",
     bio,
     location: existingPersona?.location ?? { city: "New York", region: "NY", country: "US" },
-    ageRange: existingPersona?.ageRange ?? { min: 30, max: 42 },
+    age: basics?.age ?? existingPersona?.age,
+    gender: basics?.gender ?? existingPersona?.gender,
+    seeking: basics?.seeking ?? existingPersona?.seeking,
+    wantsKids: basics?.wantsKids ?? existingPersona?.wantsKids,
+    ageRange: basics
+      ? { min: basics.age - 1, max: basics.age + 1 }
+      : existingPersona?.ageRange ?? { min: 30, max: 42 },
     scheduleStyle: sources.calendar ? "structured" : "mixed",
     interests: dedupedInterests.slice(0, 12),
     values: mergedValues,
@@ -617,7 +636,7 @@ export const scriptedEngine: AgentEngine = {
 
     const valScore = scoreValues(me.values, them.values);
     const lifeScore = scoreLifestyle(me, them);
-    const logScore = scoreLogistics(me, them);
+    const { score: logScore, ageNote } = scoreLogistics(me, them);
     const base = valScore * 0.45 + lifeScore * 0.35 + logScore * 0.2;
 
     // Initial estimate is cautious: every yellow flag counts against the match
@@ -696,6 +715,14 @@ export const scriptedEngine: AgentEngine = {
           `Your calendars likely mesh; both ${me.scheduleStyle} planners.`,
         ])
       );
+    }
+
+    // Life-stage read always makes the report — as a highlight when aligned,
+    // a risk when stages diverge.
+    if (logScore >= 75) {
+      highlights.push(ageNote);
+    } else {
+      risks.push(ageNote);
     }
 
     for (const flag of unresolvedFlags) {

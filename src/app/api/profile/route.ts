@@ -63,6 +63,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(getProfile(user.id));
   }
 
+  if (action === "set_basics") {
+    const age = Number(body.age);
+    if (Number.isNaN(age) || age < 18 || age > 99) {
+      return NextResponse.json({ error: "Enter an age between 18 and 99" }, { status: 400 });
+    }
+    const gender = String(body.gender ?? "man");
+    const seeking = String(body.seeking ?? "women");
+    const wantsKids = String(body.wantsKids ?? "open");
+    updateProfile(user.id, {
+      basics: {
+        age,
+        gender: gender as "man" | "woman" | "nonbinary",
+        seeking: seeking as "men" | "women" | "everyone",
+        wantsKids: wantsKids as "yes" | "no" | "open",
+      },
+    });
+    return NextResponse.json(getProfile(user.id));
+  }
+
   if (action === "import_ai_memory") {
     const provider = String(body.provider ?? "Claude");
     const content = String(body.content ?? "").trim();
@@ -99,6 +118,7 @@ export async function POST(req: NextRequest) {
       sources,
       artifacts: (updated.artifacts ?? []).map((a) => a.content),
       existingPersona: updated.persona,
+      basics: updated.basics,
     });
     updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
     return NextResponse.json(getProfile(user.id));
@@ -117,6 +137,7 @@ export async function POST(req: NextRequest) {
       sources,
       artifacts: artifactTexts,
       existingPersona: profile.persona,
+      basics: profile.basics,
     });
     updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
     return NextResponse.json(getProfile(user.id));

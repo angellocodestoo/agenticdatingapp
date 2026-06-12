@@ -55,6 +55,9 @@ const PERSONA_SYSTEM = `You are the profile-builder for an agentic dating app. Y
 async function buildPersonaLLM(input: BuildPersonaInput): Promise<Persona> {
   const user = `Build a dating persona from this data.
 
+USER BASICS (authoritative — copy these into the persona verbatim):
+${JSON.stringify(input.basics ?? {})}
+
 SOURCES (connected integrations):
 ${JSON.stringify(input.sources, null, 2)}
 
@@ -67,6 +70,7 @@ Return JSON exactly matching this TypeScript type (no extra keys):
 {
   "id": string, "displayName": "You", "headline": string, "bio": string,
   "location": {"city": string, "region"?: string, "country": string},
+  "age"?: number, "gender"?: "man"|"woman"|"nonbinary", "seeking"?: "men"|"women"|"everyone", "wantsKids"?: "yes"|"no"|"open",
   "ageRange": {"min": number, "max": number},
   "scheduleStyle": "structured" | "flexible" | "mixed",
   "interests": string[],            // max 12
@@ -107,6 +111,8 @@ CANDIDATE PERSONA (agent_b represents them):
 ${JSON.stringify(candidate.persona)}
 
 Simulate a 10-16 turn agent-to-agent conversation, then produce a match report. Score honestly: values overlap (45%), lifestyle/interests (35%), logistics (20%), minus a yellow-flag penalty (0-30).
+
+LOGISTICS = life-stage alignment, not raw age proximity. Consider: kids intent changes the calculus (a family-minded man's window skews younger as he ages; a family-minded woman in her late 20s pairs best with established men around 33-38, not her own age); explicitly not wanting kids removes timing pressure and re-centers on same-stage companionship; men on average mature later, so woman-seeking-man pairings tolerate the man being a few years older; never score well below the half-your-age-plus-seven line in either direction. Reference the life-stage reasoning in highlights or risks.
 
 SCORING IS DYNAMIC: start from a cautious initial score where every yellow flag counts against the match. As the conversation probes each flag, decide whether it's genuinely workable or a real risk. Workable flags refund their penalty; real risks keep it. The final "overall" reflects these adjustments, and "initial" records the pre-conversation estimate. When you adjust, add a system turn narrating it (e.g. "Agent reassessed career intensity — workable. +6."). Adjustments can go down too, if the conversation surfaces something worse than the profile suggested.
 

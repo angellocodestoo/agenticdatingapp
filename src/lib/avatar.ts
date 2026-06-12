@@ -26,7 +26,8 @@ export function avatarFor(seed: string, name: string) {
 }
 
 export function ageFromPersona(p: Persona): number {
-  // Stable per-persona age within the declared range.
+  if (p.age) return p.age;
+  // Fallback: stable per-persona age within the declared range.
   const mid = Math.round((p.ageRange.min + p.ageRange.max) / 2);
   const jitter = hash(p.id) % 3;
   return Math.min(p.ageRange.max, mid + jitter - 1);
