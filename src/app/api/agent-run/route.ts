@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import {
   addNotification,
   getCandidateProfile,
+  getBlockedCandidateIds,
   getLatestRun,
   getMatchLifecycleForCandidate,
   getProfile,
@@ -503,6 +504,9 @@ export async function POST(req: Request) {
     const candidate = run.candidates.find((c) => c.id === candidateId);
     if (!report || !candidate) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+    if (getBlockedCandidateIds(user.id).has(candidate.id)) {
+      return NextResponse.json({ error: "This person is blocked" }, { status: 403 });
     }
 
     const threshold = getSettings(user.id).threshold;

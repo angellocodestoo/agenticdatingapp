@@ -185,6 +185,7 @@ export default function HistoryPage() {
   const [loaded, setLoaded] = useState(false);
   const [openFeedback, setOpenFeedback] = useState<string | null>(null);
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const [safetyMsg, setSafetyMsg] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     Promise.all([
@@ -208,6 +209,27 @@ export default function HistoryPage() {
     });
     setBusyRequestId(null);
     refresh();
+  }
+
+  async function safetyAction(candidateId: string | undefined, action: "block" | "report") {
+    if (!candidateId) return;
+    const res = await fetch("/api/safety", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        candidateId,
+        action,
+        reason: action === "block" ? "Not interested" : "Review requested",
+      }),
+    });
+    const data = await res.json();
+    setSafetyMsg(
+      res.ok
+        ? action === "block"
+          ? `${data.candidateName} will not appear in future runs.`
+          : "Thanks. Red String saved this for review."
+        : data.error ?? "Could not save safety action."
+    );
   }
 
   useEffect(refresh, [refresh]);
@@ -246,6 +268,10 @@ export default function HistoryPage() {
               Run my agent
             </Link>
           </div>
+        )}
+
+        {safetyMsg && (
+          <p className="rounded-2xl bg-stone-900 text-white text-xs px-4 py-2.5">{safetyMsg}</p>
         )}
 
         {incoming.length > 0 && (
@@ -412,6 +438,17 @@ export default function HistoryPage() {
                       className="rounded-full border border-stone-200 text-stone-500 text-sm px-4 py-2 hover:border-stone-300 transition-colors"
                     >
                       Pass
+                    </button>
+                  </div>
+                )}
+
+                {d.proposal.candidateId && (
+                  <div className="mt-3 flex gap-4 text-[11px] text-stone-400">
+                    <button onClick={() => safetyAction(d.proposal.candidateId, "report")} className="hover:text-rose-500 underline">
+                      Report
+                    </button>
+                    <button onClick={() => safetyAction(d.proposal.candidateId, "block")} className="hover:text-rose-500 underline">
+                      Block from future runs
                     </button>
                   </div>
                 )}

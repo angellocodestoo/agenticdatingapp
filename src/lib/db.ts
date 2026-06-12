@@ -69,6 +69,14 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL,
       json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS safety_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      candidate_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -104,6 +112,7 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_candidate_profiles_owner ON candidate_profiles(owner_user_id);
     CREATE INDEX IF NOT EXISTS idx_match_lifecycles_user ON match_lifecycles(user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_match_lifecycles_candidate ON match_lifecycles(candidate_id);
+    CREATE INDEX IF NOT EXISTS idx_safety_events_user ON safety_events(user_id, candidate_id, action);
     CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC);

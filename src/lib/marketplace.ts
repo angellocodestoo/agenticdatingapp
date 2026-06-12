@@ -1,6 +1,7 @@
 import { seededCandidates } from "@/data/candidates";
 import { generateCandidates } from "@/lib/candidateGen";
 import {
+  getBlockedCandidateIds,
   getVisibleCandidateProfiles,
   saveCandidateProfile,
 } from "@/lib/store";
@@ -37,8 +38,10 @@ export function getMarketplaceCandidates(
   count: number
 ): Candidate[] {
   ensureSeedCandidateProfiles();
+  const blocked = getBlockedCandidateIds(userId);
 
   const existing = getVisibleCandidateProfiles(userId, Math.max(50, count * 4))
+    .filter((candidate) => !blocked.has(candidate.id))
     .filter((candidate) => fitsSeeking(me, candidate));
 
   if (existing.length < count) {
@@ -49,5 +52,8 @@ export function getMarketplaceCandidates(
     existing.push(...generated);
   }
 
-  return existing.slice(0, count).map(({ id, persona }) => ({ id, persona }));
+  return existing
+    .filter((candidate) => !blocked.has(candidate.id))
+    .slice(0, count)
+    .map(({ id, persona }) => ({ id, persona }));
 }

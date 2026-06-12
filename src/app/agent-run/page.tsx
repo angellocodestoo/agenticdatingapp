@@ -73,6 +73,7 @@ export default function AgentRunPage() {
   const [call, setCall] = useState<WarmupCall | null>(null);
   const [callReason, setCallReason] = useState("");
   const [pendingConsentMsg, setPendingConsentMsg] = useState<string | null>(null);
+  const [safetyMsg, setSafetyMsg] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [responding, setResponding] = useState(false);
   const [hasPersona, setHasPersona] = useState<boolean | null>(null);
@@ -138,6 +139,7 @@ export default function AgentRunPage() {
     setProposal(null);
     setCall(null);
     setPendingConsentMsg(null);
+    setSafetyMsg(null);
 
     const es = new EventSource("/api/agent-run");
     es.onmessage = (e) => {
@@ -225,8 +227,36 @@ export default function AgentRunPage() {
     setSelectedMatch(null);
     setCall(null);
     setPendingConsentMsg(null);
+    setSafetyMsg(null);
     // Let React paint the idle state, then immediately relaunch.
     setTimeout(() => startRun(), 50);
+  }
+
+  async function safetyAction(candidateId: string, action: "block" | "report") {
+    const res = await fetch("/api/safety", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        candidateId,
+        action,
+        reason: action === "block" ? "Not interested" : "Review requested",
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setSafetyMsg(data.error ?? "Could not save safety action.");
+      return;
+    }
+    if (action === "block") {
+      setQualifiedMatches((matches) => matches.filter((m) => m.candidateId !== candidateId));
+      setScores((items) => items.filter((item) => item.candidateId !== candidateId));
+      if (selectedMatch?.candidateId === candidateId) setSelectedMatch(null);
+    }
+    setSafetyMsg(
+      action === "block"
+        ? `${data.candidateName} will not appear in future runs.`
+        : "Thanks. Red String saved this for review."
+    );
   }
 
   async function chooseMatch(match: QualifiedMatch) {
@@ -436,6 +466,16 @@ export default function AgentRunPage() {
                         {s.score > s.initialScore ? "↑" : "↓"} was {s.initialScore}%
                       </p>
                     )}
+                    {!proposal && (
+                      <div className="flex justify-center gap-4 text-[11px] text-stone-400">
+                        <button onClick={() => safetyAction(s.candidateId, "report")} className="hover:text-rose-500 underline">
+                          Report
+                        </button>
+                        <button onClick={() => safetyAction(s.candidateId, "block")} className="hover:text-rose-500 underline">
+                          Block
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 );
@@ -518,6 +558,10 @@ export default function AgentRunPage() {
               Try again
             </button>
           </div>
+        )}
+
+        {safetyMsg && (
+          <p className="rounded-2xl bg-stone-900 text-white text-xs px-4 py-2.5">{safetyMsg}</p>
         )}
 
         {qualifiedMatches.length > 0 && (phase === "choose" || phase === "scheduling" || phase === "done") && (

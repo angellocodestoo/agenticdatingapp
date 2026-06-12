@@ -8,6 +8,7 @@ import type {
   DateFeedback,
   DateProposal,
   MatchLifecycleRecord,
+  SafetyEvent,
   UserProfileState,
   WarmupCall,
 } from "@/lib/types";
@@ -284,6 +285,49 @@ export function getIncomingMatchRequests(ownerUserId: string): MatchLifecycleRec
 
 export function newMatchLifecycleId(): string {
   return uid("mlc");
+}
+
+// Safety
+
+export function saveSafetyEvent(
+  userId: string,
+  event: Omit<SafetyEvent, "id" | "userId" | "createdAt">
+): SafetyEvent {
+  const safetyEvent: SafetyEvent = {
+    ...event,
+    id: uid("safe"),
+    userId,
+    createdAt: Date.now(),
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO safety_events (id, user_id, candidate_id, action, created_at, json)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      safetyEvent.id,
+      safetyEvent.userId,
+      safetyEvent.candidateId,
+      safetyEvent.action,
+      safetyEvent.createdAt,
+      JSON.stringify(safetyEvent)
+    );
+  return safetyEvent;
+}
+
+export function getSafetyEvents(userId: string): SafetyEvent[] {
+  const rows = getDb()
+    .prepare("SELECT json FROM safety_events WHERE user_id = ? ORDER BY created_at DESC")
+    .all(userId) as Array<{ json: string }>;
+  return rows.map((r) => JSON.parse(r.json) as SafetyEvent);
+}
+
+export function getBlockedCandidateIds(userId: string): Set<string> {
+  return new Set(
+    getSafetyEvents(userId)
+      .filter((event) => event.action === "block")
+      .map((event) => event.candidateId)
+  );
 }
 
 // ── Date proposals ───────────────────────────────────────────────────

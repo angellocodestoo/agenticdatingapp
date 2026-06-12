@@ -202,6 +202,18 @@ export type MatchLifecycleRecord = {
   updatedAt: number;
 };
 
+export type SafetyAction = "block" | "report";
+
+export type SafetyEvent = {
+  id: string;
+  userId: string;
+  candidateId: string;
+  action: SafetyAction;
+  reason?: string;
+  notes?: string;
+  createdAt: number;
+};
+
 export type CallTopic = {
   kind: "fun" | "philosophical";
   prompt: string;
