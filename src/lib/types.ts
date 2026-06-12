@@ -238,6 +238,8 @@ export type UserArtifact = {
 
 export type UserProfileState = {
   userId: string;
+  /** Whether this user's persona can be considered by other users' agents. */
+  discoverable?: boolean;
   connectedSources: ConnectedSource[];
   /** Which device/app backs the "strava" activity slot (Strava, WHOOP, Fitbit, …). */
   fitnessProvider?: string;

@@ -115,6 +115,13 @@ export function getLatestRun(userId: string): AgentRunRecord | null {
   return getRuns(userId, 1)[0] ?? null;
 }
 
+export function getRun(userId: string, runId: string): AgentRunRecord | null {
+  const row = getDb()
+    .prepare("SELECT json FROM runs WHERE id = ? AND user_id = ?")
+    .get(runId, userId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as AgentRunRecord) : null;
+}
+
 export function newRunId(): string {
   return uid("run");
 }
@@ -171,6 +178,10 @@ export function getVisibleCandidateProfiles(
 export function publishUserCandidateProfile(userId: string): CandidateProfile | null {
   const profile = getProfile(userId);
   if (!profile.persona) return null;
+  if (profile.discoverable === false) {
+    setUserCandidateVisibility(userId, "paused");
+    return null;
+  }
   const now = Date.now();
   return saveCandidateProfile({
     id: `usercand_${userId}`,
@@ -180,6 +191,19 @@ export function publishUserCandidateProfile(userId: string): CandidateProfile | 
     persona: profile.persona,
     createdAt: now,
     updatedAt: now,
+  });
+}
+
+export function setUserCandidateVisibility(
+  userId: string,
+  visibility: CandidateProfile["visibility"]
+): CandidateProfile | null {
+  const current = getCandidateProfile(`usercand_${userId}`);
+  if (!current) return null;
+  return saveCandidateProfile({
+    ...current,
+    visibility,
+    updatedAt: Date.now(),
   });
 }
 
@@ -194,6 +218,7 @@ export function saveMatchLifecycle(record: MatchLifecycleRecord): MatchLifecycle
        ON CONFLICT(id) DO UPDATE SET
          status = excluded.status,
          candidate_consent = excluded.candidate_consent,
+         match_id = excluded.match_id,
          updated_at = excluded.updated_at,
          json = excluded.json`
     )
@@ -242,6 +267,19 @@ export function getMatchLifecycles(userId: string, limit = 50): MatchLifecycleRe
     )
     .all(userId, limit) as Array<{ json: string }>;
   return rows.map((r) => JSON.parse(r.json) as MatchLifecycleRecord);
+}
+
+export function getIncomingMatchRequests(ownerUserId: string): MatchLifecycleRecord[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM match_lifecycles
+       WHERE candidate_consent = 'pending'
+       ORDER BY updated_at DESC`
+    )
+    .all() as Array<{ json: string }>;
+  return rows
+    .map((r) => JSON.parse(r.json) as MatchLifecycleRecord)
+    .filter((record) => record.candidateOwnerUserId === ownerUserId);
 }
 
 export function newMatchLifecycleId(): string {

@@ -23,6 +23,17 @@ type RunEntry = {
   qualified: Array<{ candidateId: string; candidateName: string; score: number }>;
 };
 
+type IncomingRequest = {
+  id: string;
+  score: number;
+  updatedAt: number;
+  requesterName: string;
+  requesterHeadline: string;
+  requesterBio: string;
+  reportSummary: string;
+  highlights: string[];
+};
+
 function formatDatetime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
     weekday: "long",
@@ -170,18 +181,34 @@ function FeedbackForm({
 export default function HistoryPage() {
   const [dates, setDates] = useState<DateEntry[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
+  const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [openFeedback, setOpenFeedback] = useState<string | null>(null);
+  const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
-    fetch("/api/history")
-      .then((r) => r.json())
-      .then((data) => {
-        setDates(data.dates ?? []);
-        setRuns(data.runs ?? []);
+    Promise.all([
+      fetch("/api/history").then((r) => r.json()),
+      fetch("/api/mutual-interest").then((r) => r.json()),
+    ])
+      .then(([history, mutual]) => {
+        setDates(history.dates ?? []);
+        setRuns(history.runs ?? []);
+        setIncoming(mutual.requests ?? []);
         setLoaded(true);
       });
   }, []);
+
+  async function respondRequest(id: string, decision: "accept" | "decline") {
+    setBusyRequestId(id);
+    await fetch("/api/mutual-interest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, decision }),
+    });
+    setBusyRequestId(null);
+    refresh();
+  }
 
   useEffect(refresh, [refresh]);
 
@@ -206,7 +233,7 @@ export default function HistoryPage() {
           </p>
         </div>
 
-        {dates.length === 0 && runs.length === 0 && (
+        {dates.length === 0 && runs.length === 0 && incoming.length === 0 && (
           <div className="bg-white rounded-2xl border border-stone-100 p-8 text-center space-y-3">
             <p className="text-3xl">🤖</p>
             <p className="text-sm text-stone-500">
@@ -219,6 +246,59 @@ export default function HistoryPage() {
               Run my agent
             </Link>
           </div>
+        )}
+
+        {incoming.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
+              Match requests
+            </h2>
+            {incoming.map((request) => (
+              <div
+                key={request.id}
+                className="bg-white rounded-2xl border border-rose-100 shadow-sm p-5 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-stone-800">{request.requesterName}</p>
+                    <p className="text-sm text-stone-500 mt-0.5">{request.requesterHeadline}</p>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                    {request.score}% match
+                  </span>
+                </div>
+                {request.reportSummary && (
+                  <p className="text-sm text-stone-600 leading-relaxed">{request.reportSummary}</p>
+                )}
+                {request.highlights.length > 0 && (
+                  <div className="space-y-1">
+                    {request.highlights.map((highlight) => (
+                      <p key={highlight} className="text-xs text-stone-500 flex gap-2">
+                        <span className="text-emerald-500">✓</span>
+                        {highlight}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => respondRequest(request.id, "accept")}
+                    disabled={busyRequestId === request.id}
+                    className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700 disabled:opacity-50 transition-colors"
+                  >
+                    {busyRequestId === request.id ? "Working..." : "Confirm mutual interest"}
+                  </button>
+                  <button
+                    onClick={() => respondRequest(request.id, "decline")}
+                    disabled={busyRequestId === request.id}
+                    className="rounded-full border border-stone-200 text-stone-500 text-sm px-4 py-2 hover:border-stone-300 disabled:opacity-50 transition-colors"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </section>
         )}
 
         {upcoming.length > 0 && (

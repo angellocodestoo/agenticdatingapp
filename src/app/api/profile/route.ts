@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { getProfile, publishUserCandidateProfile, updateProfile } from "@/lib/store";
+import {
+  getProfile,
+  publishUserCandidateProfile,
+  setUserCandidateVisibility,
+  updateProfile,
+} from "@/lib/store";
 import { getMockSourceData } from "@/lib/integrations/mock";
 import { getEngine } from "@/lib/agent/llmEngine";
 import type { ConnectedSource, UserArtifact } from "@/lib/types";
@@ -92,6 +97,17 @@ export async function POST(req: NextRequest) {
         wantsKids: wantsKids as "yes" | "no" | "open",
       },
     });
+    return NextResponse.json(getProfile(user.id));
+  }
+
+  if (action === "set_discoverability") {
+    const discoverable = Boolean(body.discoverable);
+    updateProfile(user.id, { discoverable });
+    if (discoverable) {
+      publishUserCandidateProfile(user.id);
+    } else {
+      setUserCandidateVisibility(user.id, "paused");
+    }
     return NextResponse.json(getProfile(user.id));
   }
 

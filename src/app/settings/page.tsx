@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { AgentSettings } from "@/lib/types";
+import type { AgentSettings, UserProfileState } from "@/lib/types";
 
 type AuthUser = {
   id: string;
@@ -14,6 +14,7 @@ type AuthUser = {
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<AgentSettings | null>(null);
+  const [profile, setProfile] = useState<UserProfileState | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +26,9 @@ export default function SettingsPage() {
     fetch("/api/auth")
       .then((r) => r.json())
       .then((d) => setUser(d.user));
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then(setProfile);
   }, []);
 
   async function save(patch: Partial<AgentSettings>) {
@@ -54,6 +58,25 @@ export default function SettingsPage() {
     });
     router.push("/");
     router.refresh();
+  }
+
+  async function saveDiscoverability(discoverable: boolean) {
+    if (!profile) return;
+    setProfile({ ...profile, discoverable });
+    setError(null);
+    const res = await fetch("/api/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_discoverability", discoverable }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Failed to save");
+      return;
+    }
+    setProfile(data);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   }
 
   if (!settings) {
@@ -161,6 +184,36 @@ export default function SettingsPage() {
           {settings.paused && (
             <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3.5 py-2.5">
               💤 Your agent is paused. It won&apos;t start new runs until you flip this off.
+            </p>
+          )}
+        </section>
+
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-stone-700">Discoverable by other agents</h2>
+              <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+                Let other Red String agents consider your persona. Date proposals still require your approval first.
+              </p>
+            </div>
+            <button
+              onClick={() => saveDiscoverability(!(profile?.discoverable ?? true))}
+              disabled={!profile?.persona}
+              className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-40 ${
+                (profile?.discoverable ?? true) ? "bg-rose-500" : "bg-stone-200"
+              }`}
+              aria-label="Toggle discoverability"
+            >
+              <span
+                className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${
+                  (profile?.discoverable ?? true) ? "left-[22px]" : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
+          {!profile?.persona && (
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3.5 py-2.5">
+              Build your persona before becoming discoverable.
             </p>
           )}
         </section>
