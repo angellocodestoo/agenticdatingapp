@@ -56,6 +56,19 @@ type Insights = {
     };
     recent: Array<{ id: string; name: string; createdAt: number }>;
   };
+  predictionAccuracy: {
+    ratedDates: number;
+    correct: number;
+    averagePredictionError: number | null;
+    outcomes: Array<{
+      candidateName: string;
+      predicted: number;
+      actual: number;
+      rating: number;
+      wouldSeeAgain: boolean;
+      correct: boolean;
+    }>;
+  };
   learnings: Array<{ at: number; text: string; candidateName?: string }>;
 };
 
@@ -443,6 +456,59 @@ export default function InsightsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-700">Prediction accuracy</h2>
+            <p className="text-xs text-stone-400 mt-1">
+              How well the agent&apos;s match scores line up with real date outcomes.
+            </p>
+          </div>
+          {data.predictionAccuracy.ratedDates > 0 ? (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-stone-50 border border-stone-100 p-3 text-center">
+                  <p className="text-xl font-bold text-stone-800">
+                    {Math.round(
+                      (data.predictionAccuracy.correct / data.predictionAccuracy.ratedDates) * 100
+                    )}
+                    %
+                  </p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">directionally right</p>
+                </div>
+                <div className="rounded-xl bg-stone-50 border border-stone-100 p-3 text-center">
+                  <p className="text-xl font-bold text-stone-800">
+                    {data.predictionAccuracy.ratedDates}
+                  </p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">rated dates</p>
+                </div>
+                <div className="rounded-xl bg-stone-50 border border-stone-100 p-3 text-center">
+                  <p className="text-xl font-bold text-stone-800">
+                    {data.predictionAccuracy.averagePredictionError ?? "-"}
+                  </p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">avg miss</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {data.predictionAccuracy.outcomes.map((row) => (
+                  <div key={`${row.candidateName}-${row.predicted}-${row.rating}`} className="flex items-center gap-3 text-sm">
+                    <span className={row.correct ? "text-emerald-500" : "text-amber-500"}>
+                      {row.correct ? "✓" : "!"}
+                    </span>
+                    <span className="flex-1 text-stone-600">{row.candidateName}</span>
+                    <span className="text-xs text-stone-400">
+                      predicted {row.predicted}% · rated {row.rating}/5
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-stone-500">
+              No rated dates yet. Once you submit post-date feedback, this becomes the agent&apos;s calibration report.
+            </p>
+          )}
         </section>
 
         {data.persona ? (

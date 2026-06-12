@@ -41,6 +41,45 @@ export async function GET() {
   const learnings = feedback.flatMap((f) =>
     f.agentLearnings.map((l) => ({ at: f.createdAt, text: l, candidateName: f.candidateName }))
   );
+  const scoreByCandidate = new Map<string, number>();
+  for (const run of runs) {
+    for (const candidate of run.candidates) {
+      const score = run.reports[candidate.id]?.score.overall;
+      if (score !== undefined && !scoreByCandidate.has(candidate.id)) {
+        scoreByCandidate.set(candidate.id, score);
+      }
+    }
+  }
+  const outcomeRows = feedback
+    .map((f) => {
+      const predicted = f.candidateId ? scoreByCandidate.get(f.candidateId) : undefined;
+      if (predicted === undefined) return null;
+      const actual = Math.round(((f.rating - 1) / 4) * 100);
+      const predictedPositive = predicted >= 80;
+      const actualPositive = f.wouldSeeAgain && f.rating >= 4;
+      return {
+        candidateName: f.candidateName ?? "Unknown",
+        predicted,
+        actual,
+        rating: f.rating,
+        wouldSeeAgain: f.wouldSeeAgain,
+        correct: predictedPositive === actualPositive,
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+  const predictionAccuracy = {
+    ratedDates: outcomeRows.length,
+    correct: outcomeRows.filter((row) => row.correct).length,
+    averagePredictionError:
+      outcomeRows.length > 0
+        ? Math.round(
+            (outcomeRows.reduce((sum, row) => sum + Math.abs(row.predicted - row.actual), 0) /
+              outcomeRows.length) *
+              10
+          ) / 10
+        : null,
+    outcomes: outcomeRows.slice(0, 8),
+  };
 
   const confidence = computeProfileConfidence(profile);
   const connectedConnectors = CONNECTORS.filter((c) =>
@@ -82,6 +121,7 @@ export async function GET() {
           : null,
     },
     analytics,
+    predictionAccuracy,
     learnings,
   });
 }
