@@ -1,4 +1,13 @@
-export type ConnectedSource = "google_calendar" | "spotify" | "linkedin";
+export type ConnectedSource =
+  | "google_calendar"
+  | "spotify"
+  | "linkedin"
+  | "strava"
+  | "instagram"
+  | "goodreads"
+  | "ai_assistant"
+  // Legacy: replaced by OS location permission; kept so old profiles parse.
+  | "google_maps";
 
 export type ValueKey =
   | "family"
@@ -93,6 +102,12 @@ export type ConversationTurn = {
   ts: number;
 };
 
+export type ScoreAdjustment = {
+  flag: string;
+  delta: number;
+  reason: string;
+};
+
 export type MatchScoreBreakdown = {
   values: number; // 0..100
   lifestyle: number; // 0..100
@@ -113,7 +128,11 @@ export type MatchReport = {
     why: string;
   };
   score: {
-    overall: number; // 0..100
+    overall: number; // 0..100 — final, after conversation adjustments
+    /** Pre-conversation estimate, when the agent adjusted it mid-conversation. */
+    initial?: number;
+    /** How the conversation moved the score, flag by flag. */
+    adjustments?: ScoreAdjustment[];
     breakdown: MatchScoreBreakdown;
   };
   redFlagEliminatedReason?: string;
@@ -167,8 +186,63 @@ export type UserArtifact = {
 export type UserProfileState = {
   userId: string;
   connectedSources: ConnectedSource[];
+  /** Which device/app backs the "strava" activity slot (Strava, WHOOP, Fitbit, …). */
+  fitnessProvider?: string;
+  /** Which assistant backs the "ai_assistant" slot (Claude, ChatGPT, …). */
+  aiProvider?: string;
   artifacts: UserArtifact[];
   persona?: Persona;
   lastProfiledAt?: number;
+};
+
+export type AgentSettings = {
+  /** Minimum score (exclusive) a candidate needs to qualify for a date. */
+  threshold: number;
+  /** How many candidates the agent reviews per run. */
+  poolSize: number;
+  /** Search radius in miles for candidate screening. */
+  radiusMiles: number;
+  /** When paused the agent refuses to start new runs. */
+  paused: boolean;
+};
+
+export type AgentRunRecord = {
+  id: string;
+  createdAt: number;
+  candidates: Candidate[];
+  reports: Record<string, MatchReport>;
+  qualifiedIds: string[];
+  bestScore: number;
+};
+
+export type DateFeedback = {
+  id: string;
+  proposalId: string;
+  candidateId?: string;
+  candidateName?: string;
+  /** 1..5 overall */
+  rating: number;
+  chemistry: number;
+  conversation: number;
+  wouldSeeAgain: boolean;
+  notes?: string;
+  /** Human-readable description of how the agent adjusted the persona. */
+  agentLearnings: string[];
+  createdAt: number;
+};
+
+export type AppNotification = {
+  id: string;
+  type:
+    | "match_found"
+    | "proposal_accepted"
+    | "call_reminder"
+    | "feedback_request"
+    | "agent_update";
+  title: string;
+  body: string;
+  href?: string;
+  read: boolean;
+  createdAt: number;
 };
 

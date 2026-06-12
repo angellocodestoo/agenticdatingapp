@@ -32,6 +32,7 @@ export function ageFromPersona(p: Persona): number {
   return Math.min(p.ageRange.max, mid + jitter - 1);
 }
 
-export function distanceFor(seed: string): number {
-  return 1 + (hash(seed + "dist") % 12);
+/** Deterministic distance for a candidate, bounded by the user's search radius. */
+export function distanceFor(seed: string, maxMiles = 12): number {
+  return 1 + (hash(seed + "dist") % Math.max(1, maxMiles));
 }

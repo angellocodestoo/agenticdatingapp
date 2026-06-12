@@ -34,10 +34,53 @@ export type VenueRecommendation = {
   why: string;
 };
 
+export type StravaData = {
+  provider: string;
+  weeklyActivities: number;
+  topActivities: string[];
+  usualTime: string;
+  consistencyWeeks: number;
+  longestRecent: string;
+};
+
+export type InstagramData = {
+  postingCadence: string;
+  topThemes: string[];
+  taggedLocations: string[];
+  socialPattern: string;
+};
+
+export type GoodreadsData = {
+  booksThisYear: number;
+  topGenres: string[];
+  currentlyReading: string;
+  readingPattern: string;
+};
+
+export type MapsData = {
+  favoriteSpots: string[];
+  homeNeighborhood: string;
+  radiusKm: number;
+  weekendPattern: string;
+};
+
+export type AiAssistantData = {
+  provider: string;
+  conversationThemes: string[];
+  recurringQuestions: string[];
+  personalContext: string[];
+  toneProfile: string;
+};
+
 export type MockSourceData = {
   calendar?: CalendarEvent[];
   spotify?: SpotifyData;
   linkedin?: LinkedInData;
+  strava?: StravaData;
+  instagram?: InstagramData;
+  goodreads?: GoodreadsData;
+  maps?: MapsData;
+  aiAssistant?: AiAssistantData;
 };
 
 const mockCalendarData: CalendarEvent[] = [
@@ -63,11 +106,76 @@ const mockLinkedInData: LinkedInData = {
   yearsExperience: 12,
 };
 
-export function getMockSourceData(sources: ConnectedSource[]): MockSourceData {
+const mockStravaData: StravaData = {
+  provider: "Strava",
+  weeklyActivities: 4,
+  topActivities: ["running", "cycling", "trail running"],
+  usualTime: "06:30",
+  consistencyWeeks: 38,
+  longestRecent: "Half marathon, Central Park loop",
+};
+
+const mockInstagramData: InstagramData = {
+  postingCadence: "a few times a month",
+  topThemes: ["travel", "food", "friends' dinners", "city skylines"],
+  taggedLocations: ["Lisbon", "Big Sur", "West Village", "Montauk"],
+  socialPattern: "small-group gatherings over big parties",
+};
+
+const mockGoodreadsData: GoodreadsData = {
+  booksThisYear: 14,
+  topGenres: ["literary fiction", "behavioral science", "memoir"],
+  currentlyReading: "The Overstory",
+  readingPattern: "finishes what they start — few abandoned books",
+};
+
+const mockMapsData: MapsData = {
+  favoriteSpots: ["a corner café in the West Village", "Prospect Park loop", "small jazz bars", "the Whitney"],
+  homeNeighborhood: "West Village",
+  radiusKm: 6,
+  weekendPattern: "explores a new neighborhood about twice a month",
+};
+
+const mockAiAssistantData: AiAssistantData = {
+  provider: "Claude",
+  conversationThemes: [
+    "career strategy and difficult decisions",
+    "sleep and stress management",
+    "recipes and meal planning",
+    "book recommendations",
+    "how to be a better partner and friend",
+  ],
+  recurringQuestions: [
+    "how to balance ambition with being present",
+    "whether to take the bigger role or protect personal time",
+    "improving deep sleep",
+  ],
+  personalContext: [
+    "shared health goals and sleep data",
+    "talked through a career crossroads over several weeks",
+    "asks for advice on important relationships",
+  ],
+  toneProfile: "reflective and direct — asks hard questions and wants honest answers",
+};
+
+export function getMockSourceData(
+  sources: ConnectedSource[],
+  fitnessProvider?: string,
+  aiProvider?: string
+): MockSourceData {
   const result: MockSourceData = {};
   if (sources.includes("google_calendar")) result.calendar = mockCalendarData;
   if (sources.includes("spotify")) result.spotify = mockSpotifyData;
   if (sources.includes("linkedin")) result.linkedin = mockLinkedInData;
+  if (sources.includes("strava")) {
+    result.strava = { ...mockStravaData, provider: fitnessProvider ?? "Strava" };
+  }
+  if (sources.includes("instagram")) result.instagram = mockInstagramData;
+  if (sources.includes("goodreads")) result.goodreads = mockGoodreadsData;
+  if (sources.includes("google_maps")) result.maps = mockMapsData;
+  if (sources.includes("ai_assistant")) {
+    result.aiAssistant = { ...mockAiAssistantData, provider: aiProvider ?? "Claude" };
+  }
   return result;
 }
 

@@ -1,8 +1,20 @@
 import { NextRequest } from "next/server";
-import { getState } from "@/lib/store";
-import { scriptedEngine } from "@/lib/agent/scriptedEngine";
+import { requireUser } from "@/lib/auth";
+import { getLatestRun, getProfile } from "@/lib/store";
+import { getEngine } from "@/lib/agent/llmEngine";
+import { seededCandidates } from "@/data/candidates";
+import type { Candidate } from "@/lib/types";
+
+function findCandidate(userId: string, candidateId: string): Candidate | undefined {
+  const run = getLatestRun(userId);
+  return (
+    run?.candidates.find((c) => c.id === candidateId) ??
+    seededCandidates.find((c) => c.id === candidateId)
+  );
+}
 
 export async function GET(req: NextRequest) {
+  const user = await requireUser();
   const { searchParams } = new URL(req.url);
   const candidateId = searchParams.get("candidateId");
 
@@ -12,24 +24,22 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const state = getState();
-  if (!state.me.persona) {
+  const profile = getProfile(user.id);
+  if (!profile.persona) {
     return new Response(JSON.stringify({ error: "Build your persona first" }), {
       status: 400,
     });
   }
 
-  const candidate = state.candidates.find((c) => c.id === candidateId);
+  const candidate = findCandidate(user.id, candidateId);
   if (!candidate) {
     return new Response(JSON.stringify({ error: "Candidate not found" }), {
       status: 404,
     });
   }
 
-  const { turns, report } = await scriptedEngine.converse(
-    state.me.persona,
-    candidate
-  );
+  const engine = await getEngine();
+  const { turns, report } = await engine.converse(profile.persona, candidate);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -55,24 +65,26 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
   const body = await req.json();
   const candidateId = body.candidateId as string;
 
-  const state = getState();
-  if (!state.me.persona) {
+  const profile = getProfile(user.id);
+  if (!profile.persona) {
     return new Response(JSON.stringify({ error: "Build your persona first" }), {
       status: 400,
     });
   }
 
-  const candidate = state.candidates.find((c) => c.id === candidateId);
+  const candidate = findCandidate(user.id, candidateId);
   if (!candidate) {
     return new Response(JSON.stringify({ error: "Candidate not found" }), {
       status: 404,
     });
   }
 
-  const { report } = await scriptedEngine.converse(state.me.persona, candidate);
+  const engine = await getEngine();
+  const { report } = await engine.converse(profile.persona, candidate);
   return new Response(JSON.stringify(report), {
     headers: { "Content-Type": "application/json" },
   });

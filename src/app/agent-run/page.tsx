@@ -6,7 +6,13 @@ import { avatarFor, ageFromPersona, distanceFor } from "@/lib/avatar";
 import { MATCH_DATE_THRESHOLD } from "@/lib/matchThreshold";
 
 type ScanResult = { candidateId: string; candidateName: string; eliminated: boolean; reason?: string };
-type ScoreResult = { candidateId: string; candidateName: string; score: number; qualifiesForDate?: boolean };
+type ScoreResult = {
+  candidateId: string;
+  candidateName: string;
+  score: number;
+  qualifiesForDate?: boolean;
+  initialScore?: number;
+};
 type LiveTurn = ConversationTurn & { candidateName: string; candidateId: string };
 type PhaseId = "idle" | "scanning" | "evaluating" | "deep" | "choose" | "scheduling" | "done";
 
@@ -69,19 +75,38 @@ export default function AgentRunPage() {
   const [selecting, setSelecting] = useState(false);
   const [responding, setResponding] = useState(false);
   const [hasPersona, setHasPersona] = useState<boolean | null>(null);
+  const [threshold, setThreshold] = useState(MATCH_DATE_THRESHOLD);
+  const [radiusMiles, setRadiusMiles] = useState(10);
+  const [pausedMsg, setPausedMsg] = useState<string | null>(null);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const convoRef = useRef<HTMLDivElement>(null);
   const started = useRef(false);
+  const finished = useRef(false);
 
   useEffect(() => {
     fetch("/api/profile").then(r => r.json()).then(d => setHasPersona(!!d.persona));
+    fetch("/api/settings").then(r => r.json()).then(s => {
+      if (typeof s.threshold === "number") setThreshold(s.threshold);
+      if (typeof s.radiusMiles === "number") setRadiusMiles(s.radiusMiles);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
     convoRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [liveTurns, typingRole]);
 
-  function startRun() {
+  async function startRun() {
     if (started.current) return;
+    // The agent can be paused from Settings — check before opening the stream.
+    const settings = await fetch("/api/settings").then((r) => r.json()).catch(() => null);
+    if (settings?.paused) {
+      setPausedMsg("Your agent is paused. Resume it in Settings to start a new run.");
+      return;
+    }
+    if (typeof settings?.threshold === "number") setThreshold(settings.threshold);
+    setPausedMsg(null);
+    setStreamError(null);
+    finished.current = false;
     started.current = true;
     setPhase("scanning");
     setStatusMsg("Waking up your agent…");
@@ -124,10 +149,29 @@ export default function AgentRunPage() {
       }
       else if (data.type === "conversation_complete") {
         if (data.persona) setPersonaMap(m => ({ ...m, [data.candidateId]: data.persona }));
+        // The conversation may have moved the score — update to the final read.
+        setScores(prev => prev.map(s =>
+          s.candidateId === data.candidateId
+            ? {
+                ...s,
+                score: data.score,
+                qualifiesForDate: data.qualifiesForDate,
+                initialScore: data.initialScore ?? (data.initialScore === 0 ? 0 : s.initialScore),
+              }
+            : s
+        ));
+      }
+      else if (data.type === "no_matches") {
+        setNoQualifiedMsg(data.message);
+        setStatusMsg("Run complete — no one cleared screening.");
+        setPhase("done");
+        finished.current = true;
+        es.close();
       }
       else if (data.type === "no_qualified") {
         setNoQualifiedMsg(data.message);
         setPhase("done");
+        finished.current = true;
         es.close();
       }
       else if (data.type === "qualified_matches") {
@@ -137,10 +181,31 @@ export default function AgentRunPage() {
         matches.forEach(m => { map[m.candidateId] = m.persona; });
         setPersonaMap(m => ({ ...m, ...map }));
         setPhase("choose");
+        finished.current = true;
         es.close();
       }
     };
-    es.onerror = () => es.close();
+    es.onerror = () => {
+      es.close();
+      if (!finished.current) {
+        setStreamError("Lost connection to your agent mid-run.");
+        setPhase("done");
+      }
+    };
+  }
+
+  /** Reset everything and send the agent out again. */
+  function runAgain() {
+    started.current = false;
+    setPhase("idle");
+    setStatusMsg("");
+    setNoQualifiedMsg(null);
+    setStreamError(null);
+    setProposal(null);
+    setSelectedMatch(null);
+    setCall(null);
+    // Let React paint the idle state, then immediately relaunch.
+    setTimeout(() => startRun(), 50);
   }
 
   async function chooseMatch(match: QualifiedMatch) {
@@ -172,11 +237,19 @@ export default function AgentRunPage() {
       body: JSON.stringify({ action: "respond_proposal", proposalId: proposal.proposalId, response }),
     });
     const data = await res.json();
-    setProposal(data.proposal);
-    if (data.call) setCall(data.call);
-    if (data.reason) setCallReason(data.reason);
     setResponding(false);
-    if (response === "accepted") setPhase("done");
+    if (response === "accepted") {
+      setProposal(data.proposal);
+      if (data.call) setCall(data.call);
+      if (data.reason) setCallReason(data.reason);
+      setPhase("done");
+      return;
+    }
+    // Declined: return to the qualified list so they can pick someone else.
+    setProposal(null);
+    setSelectedMatch(null);
+    setPhase("choose");
+    setStatusMsg("No problem — pick someone else, or send your agent back out.");
   }
 
   if (hasPersona === null) {
@@ -221,7 +294,12 @@ export default function AgentRunPage() {
             <div className="space-y-2.5">
               <h1 className="text-3xl font-bold tracking-tight text-stone-900 leading-tight">Ready when you are.</h1>
               <p className="text-[15px] text-stone-500 max-w-xs mx-auto leading-relaxed">
-                Fresh people nearby every time. Your agent talks to everyone who passes screening — you pick who gets a date ({MATCH_DATE_THRESHOLD}%+ only).
+                Fresh people nearby every time. Your agent talks to everyone who passes screening — you pick who gets a date ({threshold}%+ only).
+              </p>
+              <p className="text-xs text-stone-400">
+                Searching within <span className="font-semibold text-stone-500">{radiusMiles} miles</span>
+                {" · "}
+                <a href="/settings" className="text-rose-400 hover:text-rose-500 underline">adjust</a>
               </p>
             </div>
             <button
@@ -230,6 +308,12 @@ export default function AgentRunPage() {
             >
               Send my agent out 💌
             </button>
+            {pausedMsg && (
+              <div className="w-full rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-800 leading-relaxed">
+                💤 {pausedMsg}{" "}
+                <a href="/settings" className="font-semibold underline">Open Settings</a>
+              </div>
+            )}
           </div>
         )}
 
@@ -278,23 +362,36 @@ export default function AgentRunPage() {
         {scores.length > 0 && (
           <div className="space-y-2">
             <p className="text-[11px] font-semibold tracking-wider uppercase text-stone-400 px-1">
-              Compatibility · {MATCH_DATE_THRESHOLD}%+ qualifies for a date
+              Compatibility · {threshold}%+ qualifies for a date
             </p>
             <div className="space-y-2">
-              {[...scores].sort((a, b) => b.score - a.score).map(s => (
+              {[...scores].sort((a, b) => b.score - a.score).map(s => {
+                const p = personaMap[s.candidateId];
+                return (
                 <div key={s.candidateId} className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl border shadow-sm ${s.qualifiesForDate ? "bg-rose-50/80 border-rose-200" : "bg-white border-stone-100"}`}>
                   <Avatar seed={s.candidateId} name={s.candidateName} size={36} />
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold text-stone-800">{s.candidateName}</span>
-                    {s.qualifiesForDate && (
-                      <p className="text-[10px] text-rose-500 font-medium">Date eligible</p>
+                    <span className="text-sm font-semibold text-stone-800">
+                      {s.candidateName}{p ? `, ${ageFromPersona(p)}` : ""}
+                    </span>
+                    <p className={`text-[10px] font-medium ${s.qualifiesForDate ? "text-rose-500" : "text-stone-400"}`}>
+                      {p ? `${distanceFor(s.candidateId, radiusMiles)} mi away` : ""}
+                      {s.qualifiesForDate ? `${p ? " · " : ""}Date eligible` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-sm font-bold tabular-nums ${s.score > threshold ? "text-emerald-600" : "text-stone-400"}`}>
+                      {s.score}%
+                    </span>
+                    {s.initialScore !== undefined && s.initialScore !== s.score && (
+                      <p className={`text-[10px] font-medium tabular-nums ${s.score > s.initialScore ? "text-emerald-500" : "text-amber-500"}`}>
+                        {s.score > s.initialScore ? "↑" : "↓"} was {s.initialScore}%
+                      </p>
                     )}
                   </div>
-                  <span className={`text-sm font-bold tabular-nums ${s.score > MATCH_DATE_THRESHOLD ? "text-emerald-600" : "text-stone-400"}`}>
-                    {s.score}%
-                  </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -343,8 +440,35 @@ export default function AgentRunPage() {
         )}
 
         {noQualifiedMsg && (
-          <div className="animate-fade-up rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-800 leading-relaxed">
-            {noQualifiedMsg}
+          <div className="animate-fade-up space-y-3">
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-800 leading-relaxed">
+              {noQualifiedMsg}
+            </div>
+            <button
+              onClick={runAgain}
+              className="w-full rounded-2xl bg-gradient-to-r from-rose-500 to-rose-400 text-white py-4 text-[15px] font-semibold shadow-lg shadow-rose-300/50 hover:-translate-y-0.5 transition-all"
+            >
+              Send my agent out again 💌
+            </button>
+            <div className="flex justify-center gap-5 text-xs text-stone-400">
+              <a href="/settings" className="hover:text-rose-500 underline">Lower your match threshold</a>
+              <a href="/settings" className="hover:text-rose-500 underline">Widen your radius</a>
+              <a href="/persona" className="hover:text-rose-500 underline">Refine your profile</a>
+            </div>
+          </div>
+        )}
+
+        {streamError && (
+          <div className="animate-fade-up space-y-3">
+            <div className="rounded-2xl bg-red-50 border border-red-200 px-5 py-4 text-sm text-red-700 leading-relaxed">
+              {streamError}
+            </div>
+            <button
+              onClick={runAgain}
+              className="w-full rounded-2xl bg-stone-900 text-white py-3.5 text-sm font-semibold hover:bg-stone-700 transition-colors"
+            >
+              Try again
+            </button>
           </div>
         )}
 
@@ -352,7 +476,7 @@ export default function AgentRunPage() {
           <div className="animate-fade-up space-y-3">
             <div className="px-1">
               <h2 className="text-lg font-bold text-stone-900">Your agent recommends</h2>
-              <p className="text-sm text-stone-500">Based on the conversations — only matches above {MATCH_DATE_THRESHOLD}%.</p>
+              <p className="text-sm text-stone-500">Based on the conversations — only matches above {threshold}%.</p>
             </div>
             {qualifiedMatches.map((m) => {
               const isSelected = selectedMatch?.candidateId === m.candidateId;
@@ -370,7 +494,7 @@ export default function AgentRunPage() {
                       <h3 className="text-2xl font-bold">
                         {m.candidateName}<span className="font-light">, {ageFromPersona(m.persona)}</span>
                       </h3>
-                      <p className="text-xs text-white/85">{m.persona.location.city} · {distanceFor(m.candidateId)} mi</p>
+                      <p className="text-xs text-white/85">{m.persona.location.city} · {distanceFor(m.candidateId, radiusMiles)} mi</p>
                     </div>
                   </div>
                   <div className="px-5 py-4 space-y-3">
@@ -453,7 +577,30 @@ export default function AgentRunPage() {
                 </div>
               ))}
             </div>
+            <div className="space-y-3">
+              <a
+                href="/history"
+                className="block text-center rounded-2xl bg-stone-900 text-white py-3.5 text-sm font-semibold hover:bg-stone-700 transition-colors"
+              >
+                View in your dates →
+              </a>
+              <button
+                onClick={runAgain}
+                className="w-full text-center text-xs text-stone-400 hover:text-rose-500 underline"
+              >
+                Send my agent out again
+              </button>
+            </div>
           </div>
+        )}
+
+        {phase === "choose" && qualifiedMatches.length > 0 && !proposal && (
+          <button
+            onClick={runAgain}
+            className="w-full text-center text-xs text-stone-400 hover:text-rose-500 underline pt-1"
+          >
+            None of these? Send my agent back out
+          </button>
         )}
       </div>
     </main>

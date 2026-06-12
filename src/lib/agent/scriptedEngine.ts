@@ -69,40 +69,42 @@ function scoreLogistics(me: Persona, them: Persona): number {
   return clamp(score);
 }
 
-function checkDealbreaker(
+/** Returns a rejection reason when my dealbreakers conflict with their profile. */
+export function checkDealbreaker(
   myDealbreakers: Dealbreaker[],
-  theirFlags: YellowFlag[],
+  _theirFlags: YellowFlag[],
   theirDealbreakers: Dealbreaker[]
 ): string | null {
-  const theirFlagKeys = theirFlags.map((f) => f.key);
   const theirBreakers = theirDealbreakers.map((d) => d.key);
 
   for (const db of myDealbreakers) {
-    if (db.key === "non_monogamy" && theirBreakers.includes("non_monogamy")) {
-      return null;
-    }
-    if (db.key === "smoking" && theirFlagKeys.includes("diet_lifestyle")) {
-      return null;
-    }
-    if (db.key === "wants_kids_no" && theirBreakers.includes("wants_kids_no")) {
+    if (db.key === "wants_kids_no" && theirBreakers.includes("wants_kids_yes")) {
       return "Dealbreaker: one person does not want kids and the other does.";
     }
-    if (db.key === "wants_kids_yes" && theirBreakers.includes("wants_kids_yes")) {
-      return null;
+    if (db.key === "wants_kids_yes" && theirBreakers.includes("wants_kids_no")) {
+      return "Dealbreaker: one person wants kids and the other does not.";
     }
-    if (db.key === "heavy_drinking") {
-      return null;
+    // Listing a key as MY dealbreaker means "I won't accept this in a partner".
+    // A key in THEIR list doubles as a trait flag (candidates are generated
+    // with traits like smoking/non-monogamy in their dealbreaker slot).
+    if (db.key === "non_monogamy" && theirBreakers.includes("non_monogamy")) {
+      return "Dealbreaker: one person is open to non-monogamy, the other is not.";
     }
-    if (db.key === "non_monogamy") {
-      const theirHas = theirBreakers.some(
-        (k) => k === "non_monogamy"
-      );
-      if (!theirHas) {
-        return "Dealbreaker: one person is open to non-monogamy, the other is not.";
-      }
+    if (db.key === "smoking" && theirBreakers.includes("smoking")) {
+      return "Dealbreaker: one person smokes, the other won't accept it.";
+    }
+    if (db.key === "heavy_drinking" && theirBreakers.includes("heavy_drinking")) {
+      return "Dealbreaker: drinking habits are a hard mismatch.";
     }
   }
   return null;
+}
+
+export function checkDealbreakerPair(me: Persona, them: Persona): string | null {
+  return (
+    checkDealbreaker(me.dealbreakers, them.yellowFlags, them.dealbreakers) ??
+    checkDealbreaker(them.dealbreakers, me.yellowFlags, me.dealbreakers)
+  );
 }
 
 function resolvedYellowFlag(flag: YellowFlag, context: Persona): boolean {
@@ -121,11 +123,18 @@ function rand<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+export type FlagResolution = {
+  flag: YellowFlag;
+  resolved: boolean;
+  delta: number;
+};
+
 function buildConversation(
   me: Persona,
   them: Persona,
-  yellowFlags: YellowFlag[],
-  sharedInterests: string[]
+  resolutions: FlagResolution[],
+  sharedInterests: string[],
+  scoreStory: { initial: number; final: number }
 ): ConversationTurn[] {
   const now = Date.now();
   const turns: ConversationTurn[] = [];
@@ -184,9 +193,8 @@ function buildConversation(
     );
   }
 
-  // Yellow flags
-  for (const flag of yellowFlags.slice(0, 2)) {
-    const resolved = resolvedYellowFlag(flag, me);
+  // Yellow flags — each probe ends with the agent adjusting its estimate.
+  for (const { flag, resolved, delta } of resolutions) {
     const label = flag.key.replace(/_/g, " ");
     A(
       rand([
@@ -204,6 +212,11 @@ function buildConversation(
           `That one resolves itself. Their patterns are compatible — it's a green light, not a yellow one, once you see the detail.`,
         ])
       );
+      turns.push({
+        role: "system",
+        content: `Your agent reassessed "${label}" — more workable than the profile suggested. Compatibility adjusted +${delta}.`,
+        ts: tick(900),
+      });
     } else {
       B(
         rand([
@@ -212,6 +225,11 @@ function buildConversation(
           `Won't sugarcoat it — this needs explicit conversation. ${them.displayName} is willing, but it's not automatic.`,
         ])
       );
+      turns.push({
+        role: "system",
+        content: `Your agent kept "${label}" on the risk list — the estimate stands.`,
+        ts: tick(900),
+      });
     }
   }
 
@@ -250,17 +268,15 @@ function buildConversation(
     1200
   );
 
-  return turns;
-}
+  if (scoreStory.final !== scoreStory.initial) {
+    turns.push({
+      role: "system",
+      content: `Final compatibility: ${scoreStory.final}% — adjusted from an initial ${scoreStory.initial}% after the conversation.`,
+      ts: tick(1000),
+    });
+  }
 
-/** Stable slug so re-running the profiler keeps the same assumption IDs
- *  (and therefore the user's accurate/wrong ratings survive a rebuild). */
-function slug(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
+  return turns;
 }
 
 /** Maps free-text "About me" keywords to interests + value preferences so the
@@ -377,6 +393,99 @@ function buildPersonaFromSources(input: BuildPersonaInput): Persona {
     });
   }
 
+  if (sources.strava) {
+    const device = sources.strava.provider;
+    interests.push(...sources.strava.topActivities, "fitness");
+    addValue("health", "high");
+    assumptions.push({
+      id: "strava-consistency",
+      label: `Genuinely consistent athlete — ${sources.strava.weeklyActivities} sessions a week, ${sources.strava.consistencyWeeks} weeks running`,
+      evidence: [`${device}: weekly activity count`, `${device}: streak length`],
+      confidence: 0.92,
+    });
+    const earlyTraining = parseInt(sources.strava.usualTime) < 8;
+    if (earlyTraining) {
+      assumptions.push({
+        id: "strava-early",
+        label: "Trains before the day starts — discipline isn't performative",
+        evidence: [`${device}: usual activity start time`],
+        confidence: 0.85,
+      });
+    }
+  }
+
+  if (sources.instagram) {
+    interests.push(...sources.instagram.topThemes.slice(0, 3));
+    addValue("community", "medium");
+    assumptions.push({
+      id: "instagram-social",
+      label: `Prefers ${sources.instagram.socialPattern} — quality over volume socially`,
+      evidence: ["Instagram: tagged gatherings", "Instagram: posting cadence"],
+      confidence: 0.7,
+    });
+    if (sources.instagram.taggedLocations.length >= 3) {
+      assumptions.push({
+        id: "instagram-travel",
+        label: `Travels with intent — recent trips include ${sources.instagram.taggedLocations.slice(0, 2).join(" and ")}`,
+        evidence: ["Instagram: tagged locations"],
+        confidence: 0.78,
+      });
+      addValue("adventure", "medium");
+    }
+  }
+
+  if (sources.goodreads) {
+    interests.push("books", ...sources.goodreads.topGenres.slice(0, 2));
+    addValue("curiosity", "high");
+    assumptions.push({
+      id: "goodreads-depth",
+      label: `A genuine reader — ${sources.goodreads.booksThisYear} books this year, ${sources.goodreads.readingPattern}`,
+      evidence: ["Goodreads: books read", "Goodreads: completion pattern"],
+      confidence: 0.84,
+    });
+  }
+
+  if (sources.maps) {
+    interests.push("neighborhood exploring");
+    assumptions.push({
+      id: "maps-rhythm",
+      label: `Life centers on ${sources.maps.homeNeighborhood} — but ${sources.maps.weekendPattern}`,
+      evidence: ["Maps: saved & frequent places"],
+      confidence: 0.76,
+    });
+  }
+
+  if (sources.aiAssistant) {
+    const ai = sources.aiAssistant.provider;
+    // What someone asks their AI in private is the least-performed signal we have.
+    addValue("growth", "high");
+    addValue("kindness", "high");
+    if (sources.aiAssistant.conversationThemes.some((t) => /sleep|stress|health/.test(t))) {
+      addValue("health", "high");
+    }
+    if (sources.aiAssistant.recurringQuestions.some((q) => /partner|relationship|present/.test(q))) {
+      addValue("family", "high");
+    }
+    assumptions.push({
+      id: "ai-inner-life",
+      label: `Privately wrestles with balancing ambition and presence — it's a recurring theme, not a passing thought`,
+      evidence: [`${ai}: recurring questions`, `${ai}: conversation themes`],
+      confidence: 0.93,
+    });
+    assumptions.push({
+      id: "ai-self-aware",
+      label: `Genuinely self-aware: ${sources.aiAssistant.toneProfile}`,
+      evidence: [`${ai}: conversation tone across months`],
+      confidence: 0.9,
+    });
+    assumptions.push({
+      id: "ai-relational",
+      label: "Invests real thought in being a better partner and friend — asks for advice unprompted",
+      evidence: [`${ai}: relationship-advice conversations`],
+      confidence: 0.88,
+    });
+  }
+
   // ── "About me" free text ALWAYS shapes the profile ──
   const artifactText = artifacts.join(" ").trim();
   if (artifactText.length > 0) {
@@ -473,11 +582,7 @@ export const scriptedEngine: AgentEngine = {
   async converse(me: Persona, candidate: Candidate): Promise<ConverseOutput> {
     const them = candidate.persona;
 
-    const dealbreakerReason = checkDealbreaker(
-      me.dealbreakers,
-      them.yellowFlags,
-      them.dealbreakers
-    );
+    const dealbreakerReason = checkDealbreakerPair(me, them);
 
     if (dealbreakerReason) {
       const eliminatedReport: MatchReport = {
@@ -509,19 +614,55 @@ export const scriptedEngine: AgentEngine = {
     );
 
     const theirYellowFlags = them.yellowFlags;
-    const unresolvedFlags = theirYellowFlags.filter(
-      (f) => !resolvedYellowFlag(f, me)
-    );
 
     const valScore = scoreValues(me.values, them.values);
     const lifeScore = scoreLifestyle(me, them);
     const logScore = scoreLogistics(me, them);
-    const penalty = clamp(unresolvedFlags.length * 8, 0, 30);
-    const overall = clamp(
-      Math.round((valScore * 0.45 + lifeScore * 0.35 + logScore * 0.2) - penalty)
-    );
+    const base = valScore * 0.45 + lifeScore * 0.35 + logScore * 0.2;
 
-    const turns = buildConversation(me, them, theirYellowFlags, sharedInterests);
+    // Initial estimate is cautious: every yellow flag counts against the match
+    // until the agents have actually talked it through.
+    const initialPenalty = clamp(theirYellowFlags.length * 8, 0, 30);
+    const initial = clamp(Math.round(base - initialPenalty));
+
+    // The conversation probes up to two flags. Ones the agent judges workable
+    // refund their penalty; unprobed and unresolved flags keep theirs.
+    const probed = theirYellowFlags.slice(0, 2);
+    const unprobed = theirYellowFlags.slice(2);
+    const probeOutcomes = probed.map((flag) => ({
+      flag,
+      resolved: resolvedYellowFlag(flag, me),
+    }));
+    const unresolvedFlags = [
+      ...probeOutcomes.filter((o) => !o.resolved).map((o) => o.flag),
+      ...unprobed,
+    ];
+    const penalty = clamp(unresolvedFlags.length * 8, 0, 30);
+    const overall = clamp(Math.round(base - penalty));
+
+    // Spread the total swing across the flags that earned it, for the story.
+    const resolvedCount = probeOutcomes.filter((o) => o.resolved).length;
+    const totalDelta = overall - initial;
+    const resolutions: FlagResolution[] = probeOutcomes.map((o, i) => ({
+      flag: o.flag,
+      resolved: o.resolved,
+      delta: o.resolved
+        ? Math.round(totalDelta / Math.max(1, resolvedCount)) +
+          (i === 0 ? totalDelta % Math.max(1, resolvedCount) : 0)
+        : 0,
+    }));
+    const adjustments = resolutions
+      .filter((r) => r.resolved && r.delta > 0)
+      .map((r) => ({
+        flag: r.flag.key.replace(/_/g, " "),
+        delta: r.delta,
+        reason: `Probed in conversation — judged workable rather than a real friction point.`,
+      }));
+
+    const turns = buildConversation(me, them, resolutions, sharedInterests, {
+      initial,
+      final: overall,
+    });
 
     const highlights: string[] = [];
     const risks: string[] = [];
@@ -600,6 +741,8 @@ export const scriptedEngine: AgentEngine = {
       },
       score: {
         overall,
+        initial: initial !== overall ? initial : undefined,
+        adjustments: adjustments.length > 0 ? adjustments : undefined,
         breakdown: {
           values: valScore,
           lifestyle: lifeScore,

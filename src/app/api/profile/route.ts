@@ -1,35 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getState, updateMe } from "@/lib/store";
+import { requireUser } from "@/lib/auth";
+import { getProfile, updateProfile } from "@/lib/store";
 import { getMockSourceData } from "@/lib/integrations/mock";
-import { scriptedEngine } from "@/lib/agent/scriptedEngine";
+import { getEngine } from "@/lib/agent/llmEngine";
 import type { ConnectedSource, UserArtifact } from "@/lib/types";
 
 export async function GET() {
-  const state = getState();
-  return NextResponse.json(state.me);
+  const user = await requireUser();
+  return NextResponse.json(getProfile(user.id));
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
   const body = await req.json();
   const action = body.action as string;
 
   if (action === "connect_source") {
     const source = body.source as ConnectedSource;
-    const state = getState();
-    const existing = state.me.connectedSources;
-    if (!existing.includes(source)) {
-      updateMe({ connectedSources: [...existing, source] });
+    const profile = getProfile(user.id);
+    const patch: Partial<typeof profile> = {};
+    if (!profile.connectedSources.includes(source)) {
+      patch.connectedSources = [...profile.connectedSources, source];
     }
-    return NextResponse.json(getState().me);
+    // Provider-backed slots remember which app/device the user picked.
+    if (source === "strava" && body.provider) {
+      patch.fitnessProvider = String(body.provider);
+    }
+    if (source === "ai_assistant" && body.provider) {
+      patch.aiProvider = String(body.provider);
+    }
+    if (Object.keys(patch).length > 0) updateProfile(user.id, patch);
+    return NextResponse.json(getProfile(user.id));
   }
 
   if (action === "disconnect_source") {
     const source = body.source as ConnectedSource;
-    const state = getState();
-    updateMe({
-      connectedSources: state.me.connectedSources.filter((s) => s !== source),
+    const profile = getProfile(user.id);
+    updateProfile(user.id, {
+      connectedSources: profile.connectedSources.filter((s) => s !== source),
     });
-    return NextResponse.json(getState().me);
+    return NextResponse.json(getProfile(user.id));
   }
 
   if (action === "add_artifact") {
@@ -39,41 +49,87 @@ export async function POST(req: NextRequest) {
       content: body.content,
       addedAt: Date.now(),
     };
-    const state = getState();
-    updateMe({ artifacts: [...(state.me.artifacts ?? []), artifact] });
-    return NextResponse.json(getState().me);
+    const profile = getProfile(user.id);
+    updateProfile(user.id, { artifacts: [...(profile.artifacts ?? []), artifact] });
+    return NextResponse.json(getProfile(user.id));
   }
 
   if (action === "remove_artifact") {
     const id = body.id as string;
-    const state = getState();
-    updateMe({
-      artifacts: (state.me.artifacts ?? []).filter((a) => a.id !== id),
+    const profile = getProfile(user.id);
+    updateProfile(user.id, {
+      artifacts: (profile.artifacts ?? []).filter((a) => a.id !== id),
     });
-    return NextResponse.json(getState().me);
+    return NextResponse.json(getProfile(user.id));
+  }
+
+  if (action === "import_ai_memory") {
+    const provider = String(body.provider ?? "Claude");
+    const content = String(body.content ?? "").trim();
+    if (content.length < 40) {
+      return NextResponse.json(
+        { error: "That looks too short — paste the full summary your AI gave you." },
+        { status: 400 }
+      );
+    }
+    const profile = getProfile(user.id);
+    const artifact: UserArtifact = {
+      id: `art_${Date.now()}`,
+      label: `${provider} memory import`,
+      content: content.slice(0, 20000),
+      addedAt: Date.now(),
+    };
+    const connectedSources = profile.connectedSources.includes("ai_assistant")
+      ? profile.connectedSources
+      : [...profile.connectedSources, "ai_assistant" as const];
+    updateProfile(user.id, {
+      connectedSources,
+      aiProvider: provider,
+      artifacts: [...(profile.artifacts ?? []), artifact],
+    });
+    // Rebuild immediately so the import visibly reshapes the persona.
+    const updated = getProfile(user.id);
+    const sources = getMockSourceData(
+      updated.connectedSources,
+      updated.fitnessProvider,
+      updated.aiProvider
+    );
+    const engine = await getEngine();
+    const persona = await engine.buildPersona({
+      sources,
+      artifacts: (updated.artifacts ?? []).map((a) => a.content),
+      existingPersona: updated.persona,
+    });
+    updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
+    return NextResponse.json(getProfile(user.id));
   }
 
   if (action === "build_persona") {
-    const state = getState();
-    const sources = getMockSourceData(state.me.connectedSources);
-    const artifactTexts = (state.me.artifacts ?? []).map((a) => a.content);
-    const persona = await scriptedEngine.buildPersona({
+    const profile = getProfile(user.id);
+    const sources = getMockSourceData(
+      profile.connectedSources,
+      profile.fitnessProvider,
+      profile.aiProvider
+    );
+    const artifactTexts = (profile.artifacts ?? []).map((a) => a.content);
+    const engine = await getEngine();
+    const persona = await engine.buildPersona({
       sources,
       artifacts: artifactTexts,
-      existingPersona: state.me.persona,
+      existingPersona: profile.persona,
     });
-    updateMe({ persona, lastProfiledAt: Date.now() });
-    return NextResponse.json(getState().me);
+    updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
+    return NextResponse.json(getProfile(user.id));
   }
 
   if (action === "update_persona") {
     const patch = body.persona;
-    const state = getState();
-    if (!state.me.persona) {
+    const profile = getProfile(user.id);
+    if (!profile.persona) {
       return NextResponse.json({ error: "No persona to update" }, { status: 400 });
     }
-    updateMe({ persona: { ...state.me.persona, ...patch } });
-    return NextResponse.json(getState().me);
+    updateProfile(user.id, { persona: { ...profile.persona, ...patch } });
+    return NextResponse.json(getProfile(user.id));
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

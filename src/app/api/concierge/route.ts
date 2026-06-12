@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getState } from "@/lib/store";
+import { requireUser } from "@/lib/auth";
+import {
+  getLatestRun,
+  getProfile,
+  getProposal,
+  saveCall,
+  saveProposal,
+} from "@/lib/store";
 import {
   getMockFreeBusy,
   getVenueRecommendation,
@@ -7,20 +14,12 @@ import {
 } from "@/lib/integrations/mock";
 import type { DateProposal, WarmupCall, MatchReport } from "@/lib/types";
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __proposals: Record<string, DateProposal>;
-  // eslint-disable-next-line no-var
-  var __calls: Record<string, WarmupCall>;
-}
-globalThis.__proposals ??= {};
-globalThis.__calls ??= {};
-
 function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser();
   const body = await req.json();
   const action = body.action as string;
 
@@ -33,13 +32,14 @@ export async function POST(req: NextRequest) {
     const slots = getMockFreeBusy();
     const slot = slots[0];
 
-    const state = getState();
-    const candidate = state.candidates.find(
+    const profile = getProfile(user.id);
+    const run = getLatestRun(user.id);
+    const candidate = run?.candidates.find(
       (c) => body.candidateId && c.id === body.candidateId
     );
 
     const sharedInterests = [
-      ...(state.me.persona?.interests ?? []),
+      ...(profile.persona?.interests ?? []),
       ...(candidate?.persona.interests ?? []),
     ];
     const venue = getVenueRecommendation(sharedInterests);
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     const proposal: DateProposal = {
       proposalId: `dp_${uid()}`,
       matchId: report.matchId,
+      candidateId: body.candidateId,
       when: slot,
       where: {
         venueName: venue.name,
@@ -56,18 +57,19 @@ export async function POST(req: NextRequest) {
       status: "proposed",
     };
 
-    globalThis.__proposals[proposal.proposalId] = proposal;
+    saveProposal(user.id, proposal);
     return NextResponse.json({ proposal });
   }
 
   if (action === "respond_proposal") {
     const proposalId = body.proposalId as string;
     const response = body.response as "accepted" | "declined";
-    const proposal = globalThis.__proposals[proposalId];
+    const proposal = getProposal(user.id, proposalId);
     if (!proposal) {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
     proposal.status = response;
+    saveProposal(user.id, proposal);
 
     if (response === "accepted") {
       const slot = getMockFreeBusy()[1] ?? getMockFreeBusy()[0];
@@ -91,7 +93,7 @@ export async function POST(req: NextRequest) {
         status: "scheduled",
         topics: [],
       };
-      globalThis.__calls[call.callId] = call;
+      saveCall(user.id, call);
       return NextResponse.json({ proposal, call });
     }
 

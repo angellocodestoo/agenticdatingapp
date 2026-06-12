@@ -154,7 +154,6 @@ export function generateCandidates(me: Persona, count = 5): Candidate[] {
         })),
         ...extra.map((key) => ({ key, strength: pick(["low", "medium"]) as ValuePreference["strength"] })),
       ];
-      const sharedInterests: string[] = [];
       interests = sample(INTEREST_POOL, 5);
       loc = pick(CITIES);
     }

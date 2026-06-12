@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import type {
   ConversationTurn,
@@ -189,9 +190,9 @@ export default function MatchPage() {
     <main className="min-h-screen bg-gradient-to-br from-stone-50 via-rose-50 to-amber-50 px-4 py-12">
       <div className="max-w-xl mx-auto space-y-6">
         <div className="space-y-1">
-          <a href="/matches" className="text-xs text-rose-400 hover:text-rose-600 transition-colors">
+          <Link href="/matches" className="text-xs text-rose-400 hover:text-rose-600 transition-colors">
             ← All matches
-          </a>
+          </Link>
           <div className="flex items-start gap-3">
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-xl flex-shrink-0">
               {p.displayName.charAt(0)}
@@ -273,9 +274,9 @@ export default function MatchPage() {
               <span>Match eliminated</span>
             </div>
             <p className="text-sm text-red-500">{report.redFlagEliminatedReason}</p>
-            <a href="/matches" className="text-xs text-stone-500 underline">
+            <Link href="/matches" className="text-xs text-stone-500 underline">
               Back to candidates
-            </a>
+            </Link>
           </div>
         )}
 
@@ -471,12 +472,12 @@ export default function MatchPage() {
         )}
 
         {phase === "accepted" && (
-          <a
+          <Link
             href="/matches"
             className="block text-center text-sm text-stone-400 hover:text-rose-500 transition-colors"
           >
             See other matches →
-          </a>
+          </Link>
         )}
       </div>
     </main>

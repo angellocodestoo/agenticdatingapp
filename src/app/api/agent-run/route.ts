@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
-import { getState } from "@/lib/store";
-import { scriptedEngine } from "@/lib/agent/scriptedEngine";
+import { requireUser } from "@/lib/auth";
+import {
+  addNotification,
+  getLatestRun,
+  getProfile,
+  getProposal,
+  getSettings,
+  newRunId,
+  saveCall,
+  saveProposal,
+  saveRun,
+} from "@/lib/store";
+import { checkDealbreakerPair } from "@/lib/agent/scriptedEngine";
+import { getEngine } from "@/lib/agent/llmEngine";
 import { generateCandidates } from "@/lib/candidateGen";
-import { MATCH_DATE_THRESHOLD } from "@/lib/matchThreshold";
 import {
   getMockFreeBusy,
   getVenueRecommendation,
@@ -16,22 +27,6 @@ import type {
   Persona,
   WarmupCall,
 } from "@/lib/types";
-
-type AgentRunSession = {
-  candidates: Candidate[];
-  reports: Record<string, MatchReport>;
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __agentRunProposals: Record<string, DateProposal>;
-  // eslint-disable-next-line no-var
-  var __agentRunCalls: Record<string, WarmupCall>;
-  // eslint-disable-next-line no-var
-  var __agentRunSession: AgentRunSession | undefined;
-}
-globalThis.__agentRunProposals ??= {};
-globalThis.__agentRunCalls ??= {};
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -73,7 +68,7 @@ const FUN_TOPICS: Array<{
   {
     keys: ["tennis", "pickup sports", "fitness", "health"],
     prompt: "If you had to compete in one ridiculous sport you've never trained for, what would you pick and why?",
-    why: (k) => `You're both active. Playful competitiveness is a good early read.`,
+    why: () => `You're both active. Playful competitiveness is a good early read.`,
   },
   {
     keys: ["standup comedy", "comedy shows", "podcasts"],
@@ -169,16 +164,28 @@ function generateCallTopics(me: Persona, them: Persona): CallTopic[] {
 }
 
 export async function GET() {
-  const state = getState();
+  const user = await requireUser();
+  const profile = getProfile(user.id);
 
-  if (!state.me.persona) {
+  if (!profile.persona) {
     return NextResponse.json({ error: "Build your persona first" }, { status: 400 });
   }
 
-  const me = state.me.persona;
-  const candidates = generateCandidates(me, 5);
+  const settings = getSettings(user.id);
+  if (settings.paused) {
+    return NextResponse.json(
+      { error: "Your agent is paused. Resume it in Settings to start a new run." },
+      { status: 409 }
+    );
+  }
+
+  const threshold = settings.threshold;
+  const me = profile.persona;
+  const candidates = generateCandidates(me, settings.poolSize);
+  const engine = await getEngine();
   const encoder = new TextEncoder();
   const reports: Record<string, MatchReport> = {};
+  const userId = user.id;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -195,15 +202,16 @@ export async function GET() {
       const passing: typeof candidates = [];
       for (const candidate of candidates) {
         await sleep(650);
-        const { report } = await scriptedEngine.converse(me, candidate);
+        const dealbreakerReason = checkDealbreakerPair(me, candidate.persona);
 
-        if (report.redFlagEliminatedReason) {
+        if (dealbreakerReason) {
           send(controller, encoder, {
             type: "scan_result",
             candidateId: candidate.id,
             candidateName: candidate.persona.displayName,
+            persona: candidate.persona,
             eliminated: true,
-            reason: report.redFlagEliminatedReason,
+            reason: dealbreakerReason,
           });
         } else {
           passing.push(candidate);
@@ -211,6 +219,7 @@ export async function GET() {
             type: "scan_result",
             candidateId: candidate.id,
             candidateName: candidate.persona.displayName,
+            persona: candidate.persona,
             eliminated: false,
           });
         }
@@ -221,7 +230,16 @@ export async function GET() {
       if (passing.length === 0) {
         send(controller, encoder, {
           type: "no_matches",
-          message: "No one cleared your dealbreakers this round. Try loosening a filter.",
+          message:
+            "No one cleared your dealbreakers this round. Try loosening a filter or widening your search radius.",
+        });
+        saveRun(userId, {
+          id: newRunId(),
+          createdAt: Date.now(),
+          candidates,
+          reports: {},
+          qualifiedIds: [],
+          bestScore: 0,
         });
         controller.close();
         return;
@@ -237,25 +255,35 @@ export async function GET() {
 
       const results: Array<{ candidate: Candidate; report: MatchReport }> = [];
       for (const candidate of passing) {
-        const { report } = await scriptedEngine.converse(me, candidate);
+        const { report } = await engine.converse(me, candidate);
         reports[candidate.id] = report;
         results.push({ candidate, report });
+        // Stream the pre-conversation estimate; the deep phase reveals how the
+        // conversation moved it.
+        const initialScore = report.score.initial ?? report.score.overall;
         send(controller, encoder, {
           type: "scored",
           candidateId: candidate.id,
           candidateName: candidate.persona.displayName,
-          score: report.score.overall,
-          qualifiesForDate: report.score.overall > MATCH_DATE_THRESHOLD,
+          persona: candidate.persona,
+          score: initialScore,
+          qualifiesForDate: initialScore > threshold,
+          isInitialEstimate: report.score.initial !== undefined,
         });
         await sleep(750);
       }
 
       results.sort((a, b) => b.report.score.overall - a.report.score.overall);
-      const qualified = results.filter(
-        (r) => r.report.score.overall > MATCH_DATE_THRESHOLD
-      );
+      const qualified = results.filter((r) => r.report.score.overall > threshold);
 
-      globalThis.__agentRunSession = { candidates, reports };
+      saveRun(userId, {
+        id: newRunId(),
+        createdAt: Date.now(),
+        candidates,
+        reports,
+        qualifiedIds: qualified.map((r) => r.candidate.id),
+        bestScore: results[0]?.report.score.overall ?? 0,
+      });
 
       // ── Phase 3: Human-paced agent conversations with everyone who passed ──
       send(controller, encoder, {
@@ -274,8 +302,8 @@ export async function GET() {
           type: "deep_start",
           candidateId: candidate.id,
           candidateName: name,
-          score: report.score.overall,
-          qualifiesForDate: report.score.overall > MATCH_DATE_THRESHOLD,
+          score: report.score.initial ?? report.score.overall,
+          qualifiesForDate: report.score.overall > threshold,
         });
         await sleep(800);
 
@@ -317,19 +345,27 @@ export async function GET() {
           candidateId: candidate.id,
           candidateName: name,
           score: report.score.overall,
-          qualifiesForDate: report.score.overall > MATCH_DATE_THRESHOLD,
+          initialScore: report.score.initial,
+          adjustments: report.score.adjustments,
+          qualifiesForDate: report.score.overall > threshold,
           summary: report.summary,
           highlights: report.highlights,
         });
         await sleep(1100);
       }
 
-      // ── Phase 4: Present options (only >80% qualify for a date) ──
+      // ── Phase 4: Present options (only above-threshold candidates qualify) ──
       if (qualified.length === 0) {
+        addNotification(userId, {
+          type: "agent_update",
+          title: "Agent run complete — no matches this round",
+          body: `Your agent reviewed ${candidates.length} people but no one cleared your ${threshold}% threshold. Review its notes or adjust your settings.`,
+          href: "/history",
+        });
         send(controller, encoder, {
           type: "no_qualified",
-          message: `No one cleared the ${MATCH_DATE_THRESHOLD}% bar for a date this round. Your agent's notes are above — try adjusting dealbreakers or adding more context.`,
-          threshold: MATCH_DATE_THRESHOLD,
+          message: `No one cleared your ${threshold}% threshold for a date this round. Your agent's notes are above — try adjusting your threshold, widening your search radius, or adding more context.`,
+          threshold,
           allScores: results.map((r) => ({
             candidateId: r.candidate.id,
             candidateName: r.candidate.persona.displayName,
@@ -340,19 +376,29 @@ export async function GET() {
         return;
       }
 
+      addNotification(userId, {
+        type: "match_found",
+        title:
+          qualified.length === 1
+            ? `Your agent found a match: ${qualified[0].candidate.persona.displayName}`
+            : `Your agent found ${qualified.length} matches`,
+        body: `Top score ${qualified[0].report.score.overall}%. Review and pick who your agent should set up.`,
+        href: "/agent-run",
+      });
+
       send(controller, encoder, {
         type: "phase",
         phase: "choose",
         message:
           qualified.length === 1
-            ? `One strong match above ${MATCH_DATE_THRESHOLD}% — review and choose if you want a date.`
-            : `${qualified.length} people cleared ${MATCH_DATE_THRESHOLD}%+. Pick who you want your agent to set up.`,
+            ? `One strong match above ${threshold}% — review and choose if you want a date.`
+            : `${qualified.length} people cleared ${threshold}%+. Pick who you want your agent to set up.`,
       });
       await sleep(600);
 
       send(controller, encoder, {
         type: "qualified_matches",
-        threshold: MATCH_DATE_THRESHOLD,
+        threshold,
         matches: qualified.map((r) => ({
           candidateId: r.candidate.id,
           candidateName: r.candidate.persona.displayName,
@@ -426,33 +472,35 @@ function scheduleWarmupCall(dateStartIso: string): {
 }
 
 export async function POST(req: Request) {
+  const user = await requireUser();
   const body = await req.json();
   const { action, proposalId, response, candidateId } = body;
 
   if (action === "select_match") {
-    const session = globalThis.__agentRunSession;
-    if (!session) {
+    const run = getLatestRun(user.id);
+    if (!run) {
       return NextResponse.json({ error: "No active agent run" }, { status: 400 });
     }
 
-    const report = session.reports[candidateId as string];
-    const candidate = session.candidates.find((c) => c.id === candidateId);
+    const report = run.reports[candidateId as string];
+    const candidate = run.candidates.find((c) => c.id === candidateId);
     if (!report || !candidate) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
-    if (report.score.overall <= MATCH_DATE_THRESHOLD) {
+    const threshold = getSettings(user.id).threshold;
+    if (report.score.overall <= threshold) {
       return NextResponse.json(
         {
-          error: `Score must be above ${MATCH_DATE_THRESHOLD}% to book a date`,
+          error: `Score must be above ${threshold}% to book a date`,
           score: report.score.overall,
         },
         { status: 400 }
       );
     }
 
-    const state = getState();
-    const me = state.me.persona;
+    const profile = getProfile(user.id);
+    const me = profile.persona;
     if (!me) {
       return NextResponse.json({ error: "No persona" }, { status: 400 });
     }
@@ -480,7 +528,7 @@ export async function POST(req: Request) {
       status: "proposed",
     };
 
-    globalThis.__agentRunProposals[proposal.proposalId] = proposal;
+    saveProposal(user.id, proposal);
 
     return NextResponse.json({
       proposal,
@@ -491,23 +539,22 @@ export async function POST(req: Request) {
   }
 
   if (action === "respond_proposal") {
-    const proposal = globalThis.__agentRunProposals[proposalId];
+    const proposal = getProposal(user.id, proposalId);
     if (!proposal) {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
     proposal.status = response;
+    saveProposal(user.id, proposal);
 
     if (response === "accepted") {
       const { start, end, reason } = scheduleWarmupCall(proposal.when.start);
 
-      const state = getState();
-      const session = globalThis.__agentRunSession;
-      const candidate =
-        session?.candidates.find((c) => c.id === proposal.candidateId) ??
-        state.candidates.find((c) => c.id === proposal.candidateId);
+      const profile = getProfile(user.id);
+      const run = getLatestRun(user.id);
+      const candidate = run?.candidates.find((c) => c.id === proposal.candidateId);
       const topics =
-        state.me.persona && candidate
-          ? generateCallTopics(state.me.persona, candidate.persona)
+        profile.persona && candidate
+          ? generateCallTopics(profile.persona, candidate.persona)
           : [];
 
       const call: WarmupCall = {
@@ -523,7 +570,22 @@ export async function POST(req: Request) {
         status: "scheduled",
         topics,
       };
-      globalThis.__agentRunCalls[call.callId] = call;
+      saveCall(user.id, call);
+
+      const candidateName = candidate?.persona.displayName ?? "your match";
+      addNotification(user.id, {
+        type: "proposal_accepted",
+        title: `Date booked with ${candidateName}`,
+        body: `${proposal.activity} — warm-up call scheduled for ${start.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}.`,
+        href: "/history",
+      });
+      addNotification(user.id, {
+        type: "feedback_request",
+        title: "After your date: tell your agent how it went",
+        body: "Your feedback teaches the agent what actually matters to you — every rating sharpens the next match.",
+        href: "/history",
+      });
+
       return NextResponse.json({ proposal, call, reason });
     }
 
