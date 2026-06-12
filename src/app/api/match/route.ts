@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { getLatestRun, getProfile } from "@/lib/store";
+import { getLatestRun, getProfile, getSettings } from "@/lib/store";
 import { getEngine } from "@/lib/agent/llmEngine";
 import { seededCandidates } from "@/data/candidates";
 import type { Candidate } from "@/lib/types";
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   const engine = await getEngine();
-  const { turns, report } = await engine.converse(profile.persona, candidate);
+  const { turns, report } = await engine.converse(profile.persona, candidate, { threshold: getSettings(user.id).threshold });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   }
 
   const engine = await getEngine();
-  const { report } = await engine.converse(profile.persona, candidate);
+  const { report } = await engine.converse(profile.persona, candidate, { threshold: getSettings(user.id).threshold });
   return new Response(JSON.stringify(report), {
     headers: { "Content-Type": "application/json" },
   });

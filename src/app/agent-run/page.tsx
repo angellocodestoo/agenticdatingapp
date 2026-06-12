@@ -75,6 +75,7 @@ export default function AgentRunPage() {
   const [selecting, setSelecting] = useState(false);
   const [responding, setResponding] = useState(false);
   const [hasPersona, setHasPersona] = useState<boolean | null>(null);
+  const [needsBasics, setNeedsBasics] = useState(false);
   const [threshold, setThreshold] = useState(MATCH_DATE_THRESHOLD);
   const [radiusMiles, setRadiusMiles] = useState(10);
   const [pausedMsg, setPausedMsg] = useState<string | null>(null);
@@ -84,7 +85,11 @@ export default function AgentRunPage() {
   const finished = useRef(false);
 
   useEffect(() => {
-    fetch("/api/profile").then(r => r.json()).then(d => setHasPersona(!!d.persona));
+    fetch("/api/profile").then(r => r.json()).then(d => {
+      setHasPersona(!!d.persona);
+      // Personas built before basics existed can't drive life-stage matching.
+      setNeedsBasics(!!d.persona && !d.persona.age);
+    });
     fetch("/api/settings").then(r => r.json()).then(s => {
       if (typeof s.threshold === "number") setThreshold(s.threshold);
       if (typeof s.radiusMiles === "number") setRadiusMiles(s.radiusMiles);
@@ -308,6 +313,14 @@ export default function AgentRunPage() {
             >
               Send my agent out 💌
             </button>
+            {needsBasics && (
+              <div className="w-full rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-800 leading-relaxed text-left">
+                Your profile predates life-stage matching — add your{" "}
+                <a href="/onboarding" className="font-semibold underline">basics</a>{" "}
+                (age, who you&apos;re seeking, kids) and rebuild so your agent can match on
+                life stage, not just interests.
+              </div>
+            )}
             {pausedMsg && (
               <div className="w-full rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-800 leading-relaxed">
                 💤 {pausedMsg}{" "}

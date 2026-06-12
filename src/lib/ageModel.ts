@@ -160,10 +160,21 @@ export function ageAlignment(
     const span = Math.max(1, (window.max - window.min) / 2);
     score = Math.round(100 - (Math.abs(themAge - window.center) / span) * 15);
   } else {
-    // Outside: decay ~7 points per year beyond the window edge.
-    const overshoot =
-      themAge < window.min ? window.min - themAge : themAge - window.max;
-    score = Math.max(25, 85 - overshoot * 7);
+    // Outside the window the decay is asymmetric for family-minded users:
+    // the timing-critical side falls off faster. For a man seeking women
+    // that's ABOVE the window (the family timeline is the whole point);
+    // for a woman seeking men it's BELOW (younger men aren't at readiness).
+    const kidsForDecay = kidsIntent({
+      wantsKids: me.wantsKids,
+      dealbreakers: me.dealbreakers ?? [],
+    });
+    const above = themAge > window.max;
+    const timingSide =
+      kidsForDecay === "yes" &&
+      ((me.seeking === "women" && above) || (me.seeking === "men" && !above));
+    const rate = timingSide ? 12 : 7;
+    const overshoot = above ? themAge - window.max : window.min - themAge;
+    score = Math.max(25, 85 - overshoot * rate);
   }
 
   const kids = kidsIntent({ wantsKids: me.wantsKids, dealbreakers: me.dealbreakers ?? [] });

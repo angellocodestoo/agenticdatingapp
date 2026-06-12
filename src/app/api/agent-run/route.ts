@@ -255,7 +255,7 @@ export async function GET() {
 
       const results: Array<{ candidate: Candidate; report: MatchReport }> = [];
       for (const candidate of passing) {
-        const { report } = await engine.converse(me, candidate);
+        const { report } = await engine.converse(me, candidate, { threshold });
         reports[candidate.id] = report;
         results.push({ candidate, report });
         // Stream the pre-conversation estimate; the deep phase reveals how the

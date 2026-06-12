@@ -1,5 +1,6 @@
 import type { AgentEngine, BuildPersonaInput, ConverseOutput } from "./engine";
 import { ageAlignment, personaAge } from "@/lib/ageModel";
+import { MATCH_DATE_THRESHOLD } from "@/lib/matchThreshold";
 import type {
   Persona,
   Candidate,
@@ -600,7 +601,12 @@ export const scriptedEngine: AgentEngine = {
     return buildPersonaFromSources(input);
   },
 
-  async converse(me: Persona, candidate: Candidate): Promise<ConverseOutput> {
+  async converse(
+    me: Persona,
+    candidate: Candidate,
+    opts?: { threshold?: number }
+  ): Promise<ConverseOutput> {
+    const threshold = opts?.threshold ?? MATCH_DATE_THRESHOLD;
     const them = candidate.persona;
 
     const dealbreakerReason = checkDealbreakerPair(me, them);
@@ -745,16 +751,16 @@ export const scriptedEngine: AgentEngine = {
       matchId: `m_${uid()}`,
       createdAt: Date.now(),
       summary:
-        overall >= 80
+        overall > threshold
           ? rand([
               `Your agents found strong alignment — values, lifestyle, and logistics all line up. This is worth a real date.`,
               `Rare signal: substantive values overlap and a lifestyle fit that should feel easy in person.`,
-              `${them.displayName} cleared the bar. The conversation surfaced real compatibility, not just shared keywords.`,
+              `${them.displayName} cleared your threshold. The conversation surfaced real compatibility, not just shared keywords.`,
             ])
-          : overall >= 65
+          : overall >= threshold - 15
           ? rand([
               `Good overlap with a few areas to discuss openly before committing to a date.`,
-              `Promising, but not above the 80% date threshold — yellow flags need a real conversation first.`,
+              `Promising, but not above your ${threshold}% date threshold — yellow flags need a real conversation first.`,
             ])
           : rand([
               `Some interesting overlap, but friction points would need direct attention.`,

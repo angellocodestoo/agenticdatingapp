@@ -103,8 +103,14 @@ IMPORTANT: dealbreakers means "things this user will NOT accept in a partner". O
 
 const CONVERSE_SYSTEM = `You simulate a conversation between two dating-app AI agents negotiating on behalf of their humans (agent_a represents the user, agent_b the candidate), then score compatibility. Agents are warm but efficient, probe yellow flags honestly, and never reveal private details beyond what profiles contain. Output ONLY valid JSON.`;
 
-async function converseLLM(me: Persona, candidate: Candidate): Promise<ConverseOutput> {
-  const user = `USER PERSONA (agent_a represents them):
+async function converseLLM(
+  me: Persona,
+  candidate: Candidate,
+  threshold?: number
+): Promise<ConverseOutput> {
+  const user = `USER'S DATE THRESHOLD: a candidate qualifies for a date only above ${threshold ?? 80}%. Reference this number (never any other) when the report discusses clearing or missing the bar.
+
+USER PERSONA (agent_a represents them):
 ${JSON.stringify(me)}
 
 CANDIDATE PERSONA (agent_b represents them):
@@ -165,8 +171,8 @@ export const llmEngine: AgentEngine = {
   async buildPersona(input) {
     return buildPersonaLLM(input);
   },
-  async converse(me, candidate) {
-    return converseLLM(me, candidate);
+  async converse(me, candidate, opts) {
+    return converseLLM(me, candidate, opts?.threshold);
   },
 };
 
@@ -187,12 +193,12 @@ export async function getEngine(): Promise<AgentEngine> {
         return scriptedEngine.buildPersona(input);
       }
     },
-    async converse(me, candidate) {
+    async converse(me, candidate, opts) {
       try {
-        return await llmEngine.converse(me, candidate);
+        return await llmEngine.converse(me, candidate, opts);
       } catch (err) {
         console.error("LLM converse failed, falling back to scripted:", err);
-        return scriptedEngine.converse(me, candidate);
+        return scriptedEngine.converse(me, candidate, opts);
       }
     },
   };

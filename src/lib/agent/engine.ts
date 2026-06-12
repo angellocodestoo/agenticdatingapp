@@ -23,7 +23,12 @@ export type ConverseOutput = {
   report: MatchReport;
 };
 
+export type ConverseOptions = {
+  /** The user's date-qualification threshold; report copy references it. */
+  threshold?: number;
+};
+
 export interface AgentEngine {
   buildPersona(input: BuildPersonaInput): Promise<Persona>;
-  converse(me: Persona, candidate: Candidate): Promise<ConverseOutput>;
+  converse(me: Persona, candidate: Candidate, opts?: ConverseOptions): Promise<ConverseOutput>;
 }
