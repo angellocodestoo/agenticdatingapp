@@ -1,5 +1,5 @@
 import type { AgentEngine, BuildPersonaInput, ConverseOutput } from "./engine";
-import { ageAlignment, personaAge } from "@/lib/ageModel";
+import { ageAlignment, kidsIntent, personaAge } from "@/lib/ageModel";
 import { MATCH_DATE_THRESHOLD } from "@/lib/matchThreshold";
 import type {
   Persona,
@@ -58,7 +58,29 @@ function scoreLifestyle(me: Persona, them: Persona): number {
   return clamp(score);
 }
 
-function scoreLogistics(me: Persona, them: Persona): { score: number; ageNote: string } {
+/**
+ * Score weights are conditional on kids intent: for a user who definitely
+ * wants kids, age/life-stage is structural — it gets real weight. For
+ * "open" or "no" it stays a soft preference.
+ */
+export function scoreWeights(me: Persona): {
+  values: number;
+  lifestyle: number;
+  logistics: number;
+  ageShare: number;
+} {
+  const kids = kidsIntent({ wantsKids: me.wantsKids, dealbreakers: me.dealbreakers });
+  if (kids === "yes") {
+    return { values: 0.4, lifestyle: 0.28, logistics: 0.32, ageShare: 0.8 };
+  }
+  return { values: 0.45, lifestyle: 0.35, logistics: 0.2, ageShare: 0.7 };
+}
+
+function scoreLogistics(
+  me: Persona,
+  them: Persona,
+  ageShare = 0.7
+): { score: number; ageNote: string; ageScore: number } {
   // Life-stage alignment carries most of the logistics weight: it models kids
   // intent, maturity asymmetry, and the half-plus-seven guard (see lib/ageModel).
   const alignment = ageAlignment(
@@ -79,8 +101,9 @@ function scoreLogistics(me: Persona, them: Persona): { score: number; ageNote: s
   const locationScore = sameCity ? 100 : 60;
 
   return {
-    score: clamp(Math.round(alignment.score * 0.7 + locationScore * 0.3)),
+    score: clamp(Math.round(alignment.score * ageShare + locationScore * (1 - ageShare))),
     ageNote: alignment.note,
+    ageScore: alignment.score,
   };
 }
 
@@ -642,10 +665,18 @@ export const scriptedEngine: AgentEngine = {
 
     const theirYellowFlags = them.yellowFlags;
 
+    const weights = scoreWeights(me);
     const valScore = scoreValues(me.values, them.values);
     const lifeScore = scoreLifestyle(me, them);
-    const { score: logScore, ageNote } = scoreLogistics(me, them);
-    const base = valScore * 0.45 + lifeScore * 0.35 + logScore * 0.2;
+    const { score: logScore, ageNote, ageScore } = scoreLogistics(me, them, weights.ageShare);
+    let base =
+      valScore * weights.values + lifeScore * weights.lifestyle + logScore * weights.logistics;
+
+    // For a user who definitely wants kids, age alignment sets a ceiling that
+    // values overlap can't buy back: timing is structural, not negotiable.
+    if (kidsIntent({ wantsKids: me.wantsKids, dealbreakers: me.dealbreakers }) === "yes") {
+      base = Math.min(base, 65 + ageScore * 0.35);
+    }
 
     // Initial estimate is cautious: every yellow flag counts against the match
     // until the agents have actually talked it through.

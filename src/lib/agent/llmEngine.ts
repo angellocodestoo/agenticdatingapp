@@ -116,7 +116,7 @@ ${JSON.stringify(me)}
 CANDIDATE PERSONA (agent_b represents them):
 ${JSON.stringify(candidate.persona)}
 
-Simulate a 10-16 turn agent-to-agent conversation, then produce a match report. Score honestly: values overlap (45%), lifestyle/interests (35%), logistics (20%), minus a yellow-flag penalty (0-30).
+Simulate a 10-16 turn agent-to-agent conversation, then produce a match report. Score honestly, with weights conditional on the user's kids intent: if the user definitely wants kids ("wantsKids":"yes"), age/life-stage is structural — values 40%, lifestyle 28%, logistics 32%; otherwise values 45%, lifestyle 35%, logistics 20%. Subtract a yellow-flag penalty (0-30).
 
 LOGISTICS = life-stage alignment, not raw age proximity. Consider: kids intent changes the calculus (a family-minded man's window skews younger as he ages; a family-minded woman in her late 20s pairs best with established men around 33-38, not her own age); explicitly not wanting kids removes timing pressure and re-centers on same-stage companionship; men on average mature later, so woman-seeking-man pairings tolerate the man being a few years older; never score well below the half-your-age-plus-seven line in either direction. Reference the life-stage reasoning in highlights or risks.
 
