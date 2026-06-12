@@ -72,10 +72,12 @@ export default function AgentRunPage() {
   const [venueWhy, setVenueWhy] = useState("");
   const [call, setCall] = useState<WarmupCall | null>(null);
   const [callReason, setCallReason] = useState("");
+  const [pendingConsentMsg, setPendingConsentMsg] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [responding, setResponding] = useState(false);
   const [hasPersona, setHasPersona] = useState<boolean | null>(null);
   const [needsBasics, setNeedsBasics] = useState(false);
+  const [missingRequirements, setMissingRequirements] = useState<string[]>([]);
   const [threshold, setThreshold] = useState(MATCH_DATE_THRESHOLD);
   const [radiusMiles, setRadiusMiles] = useState(10);
   const [pausedMsg, setPausedMsg] = useState<string | null>(null);
@@ -89,6 +91,14 @@ export default function AgentRunPage() {
       setHasPersona(!!d.persona);
       // Personas built before basics existed can't drive life-stage matching.
       setNeedsBasics(!!d.persona && !d.persona.age);
+      const missing: string[] = [];
+      if (!d.basics) missing.push("Add your basics");
+      if (!d.persona) missing.push("Build your agent profile");
+      if ((d.connectedSources ?? []).length === 0 && (d.artifacts ?? []).length === 0) {
+        missing.push("Connect one source or add personal context");
+      }
+      if (d.persona && !d.persona.age) missing.push("Rebuild your profile with life-stage basics");
+      setMissingRequirements(missing);
     });
     fetch("/api/settings").then(r => r.json()).then(s => {
       if (typeof s.threshold === "number") setThreshold(s.threshold);
@@ -102,6 +112,10 @@ export default function AgentRunPage() {
 
   async function startRun() {
     if (started.current) return;
+    if (missingRequirements.length > 0) {
+      setPausedMsg(`Finish your profile first: ${missingRequirements.join(", ")}.`);
+      return;
+    }
     // The agent can be paused from Settings — check before opening the stream.
     const settings = await fetch("/api/settings").then((r) => r.json()).catch(() => null);
     if (settings?.paused) {
@@ -123,6 +137,7 @@ export default function AgentRunPage() {
     setSelectedMatch(null);
     setProposal(null);
     setCall(null);
+    setPendingConsentMsg(null);
 
     const es = new EventSource("/api/agent-run");
     es.onmessage = (e) => {
@@ -209,6 +224,7 @@ export default function AgentRunPage() {
     setProposal(null);
     setSelectedMatch(null);
     setCall(null);
+    setPendingConsentMsg(null);
     // Let React paint the idle state, then immediately relaunch.
     setTimeout(() => startRun(), 50);
   }
@@ -225,6 +241,14 @@ export default function AgentRunPage() {
     if (!res.ok) {
       setSelecting(false);
       alert(data.error ?? "Could not book date");
+      return;
+    }
+    if (data.pendingConsent) {
+      setPendingConsentMsg(
+        `${data.candidateName}'s agent needs to confirm mutual interest before Red String proposes a date.`
+      );
+      setPhase("done");
+      setSelecting(false);
       return;
     }
     setProposal(data.proposal);
@@ -309,10 +333,21 @@ export default function AgentRunPage() {
             </div>
             <button
               onClick={startRun}
-              className="w-full rounded-2xl bg-gradient-to-r from-rose-500 to-rose-400 text-white py-4 text-[15px] font-semibold shadow-lg shadow-rose-300/50 hover:-translate-y-0.5 transition-all"
+              disabled={missingRequirements.length > 0}
+              className="w-full rounded-2xl bg-gradient-to-r from-rose-500 to-rose-400 text-white py-4 text-[15px] font-semibold shadow-lg shadow-rose-300/50 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
             >
               Send my agent out 💌
             </button>
+            {missingRequirements.length > 0 && (
+              <div className="w-full rounded-2xl bg-white border border-rose-100 px-5 py-4 text-sm text-stone-600 leading-relaxed text-left">
+                <p className="font-semibold text-stone-800 mb-2">Before your agent can search:</p>
+                <ul className="space-y-1 list-disc list-inside">
+                  {missingRequirements.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {needsBasics && (
               <div className="w-full rounded-2xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-800 leading-relaxed text-left">
                 Your profile predates life-stage matching — add your{" "}
@@ -534,6 +569,25 @@ export default function AgentRunPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {pendingConsentMsg && (
+          <div className="animate-scale-in rounded-[28px] bg-white shadow-xl border border-rose-100 overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-rose-400 via-rose-500 to-amber-400" />
+            <div className="p-6 space-y-3">
+              <p className="text-[11px] tracking-wider uppercase text-rose-400 font-semibold">
+                Mutual interest pending
+              </p>
+              <h3 className="text-2xl font-bold text-stone-900">The string is tightening.</h3>
+              <p className="text-sm text-stone-500 leading-relaxed">{pendingConsentMsg}</p>
+              <a
+                href="/history"
+                className="block text-center rounded-2xl bg-stone-900 text-white py-3.5 text-sm font-semibold hover:bg-stone-700 transition-colors"
+              >
+                View match status
+              </a>
+            </div>
           </div>
         )}
 

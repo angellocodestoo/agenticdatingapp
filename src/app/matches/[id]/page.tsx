@@ -92,16 +92,20 @@ export default function MatchPage() {
   const [report, setReport] = useState<MatchReport | null>(null);
   const [proposal, setProposal] = useState<DateProposal | null>(null);
   const [call, setCall] = useState<WarmupCall | null>(null);
+  const [threshold, setThreshold] = useState(80);
+  const [error, setError] = useState<string | null>(null);
   const [proposing, setProposing] = useState(false);
   const [responding, setResponding] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/candidates")
-      .then((r) => r.json())
-      .then((cands: Candidate[]) => {
+    Promise.all([
+      fetch("/api/candidates").then((r) => r.json()),
+      fetch("/api/settings").then((r) => r.json()),
+    ]).then(([cands, settings]: [Candidate[], { threshold?: number }]) => {
         const found = cands.find((c) => c.id === id);
         setCandidate(found ?? null);
+        if (typeof settings.threshold === "number") setThreshold(settings.threshold);
       });
   }, [id]);
 
@@ -113,6 +117,7 @@ export default function MatchPage() {
     setPhase("streaming");
     setTurns([]);
     setReport(null);
+    setError(null);
 
     const es = new EventSource(`/api/match?candidateId=${id}`);
     es.onmessage = (e) => {
@@ -138,17 +143,26 @@ export default function MatchPage() {
 
   async function proposeDate() {
     if (!report) return;
+    if (report.score.overall <= threshold) {
+      setError(`Score must be above ${threshold}% to book a date.`);
+      return;
+    }
+    setError(null);
     setProposing(true);
     const res = await fetch("/api/concierge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "propose_date",
-        report,
         candidateId: id,
       }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Could not propose a date");
+      setProposing(false);
+      return;
+    }
     setProposal(data.proposal);
     setPhase("proposed");
     setProposing(false);
@@ -167,6 +181,11 @@ export default function MatchPage() {
       }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Could not update the proposal");
+      setResponding(false);
+      return;
+    }
     setProposal(data.proposal);
     if (data.call) setCall(data.call);
     setPhase(response);
@@ -347,7 +366,9 @@ export default function MatchPage() {
               )}
             </div>
 
-            {phase === "report" && (
+            {error && <p className="px-5 pb-3 text-xs text-red-500">{error}</p>}
+
+            {phase === "report" && report.score.overall > threshold && (
               <div className="px-5 pb-5">
                 <button
                   onClick={proposeDate}
@@ -363,6 +384,13 @@ export default function MatchPage() {
                     "Have your concierge propose a date →"
                   )}
                 </button>
+              </div>
+            )}
+            {phase === "report" && report.score.overall <= threshold && (
+              <div className="px-5 pb-5">
+                <p className="text-xs text-stone-500">
+                  This match needs to score above {threshold} before your concierge can propose a date.
+                </p>
               </div>
             )}
           </div>

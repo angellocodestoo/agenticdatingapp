@@ -109,6 +109,14 @@ export type Candidate = {
   persona: Persona;
 };
 
+export type CandidateProfile = Candidate & {
+  ownerUserId?: string;
+  source: "seed" | "demo_generated" | "user";
+  visibility: "visible" | "paused" | "blocked";
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type ConversationTurn = {
   role: "agent_a" | "agent_b" | "system";
   content: string;
@@ -167,6 +175,31 @@ export type DateProposal = {
   };
   activity: string;
   status: "proposed" | "accepted" | "declined";
+};
+
+export type MatchLifecycleStatus =
+  | "screened"
+  | "qualified"
+  | "user_selected"
+  | "candidate_pending"
+  | "mutual"
+  | "date_proposed"
+  | "accepted"
+  | "declined";
+
+export type MatchLifecycleRecord = {
+  id: string;
+  userId: string;
+  candidateId: string;
+  runId: string;
+  matchId: string;
+  proposalId?: string;
+  status: MatchLifecycleStatus;
+  score: number;
+  candidateOwnerUserId?: string;
+  candidateConsent: "pending" | "accepted" | "declined" | "not_required";
+  createdAt: number;
+  updatedAt: number;
 };
 
 export type CallTopic = {

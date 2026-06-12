@@ -4,6 +4,7 @@ import {
   getLatestRun,
   getProfile,
   getProposal,
+  getSettings,
   saveCall,
   saveProposal,
 } from "@/lib/store";
@@ -12,7 +13,7 @@ import {
   getVenueRecommendation,
   getMockMaskedNumber,
 } from "@/lib/integrations/mock";
-import type { DateProposal, WarmupCall, MatchReport } from "@/lib/types";
+import type { DateProposal, WarmupCall } from "@/lib/types";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -24,30 +25,45 @@ export async function POST(req: NextRequest) {
   const action = body.action as string;
 
   if (action === "propose_date") {
-    const report = body.report as MatchReport;
-    if (!report?.matchId) {
-      return NextResponse.json({ error: "report required" }, { status: 400 });
+    const profile = getProfile(user.id);
+    const run = getLatestRun(user.id);
+    const candidateId = String(body.candidateId ?? "");
+    if (!run || !candidateId) {
+      return NextResponse.json({ error: "No active match found" }, { status: 400 });
+    }
+
+    const candidate = run?.candidates.find(
+      (c) => c.id === candidateId
+    );
+    const report = run.reports[candidateId];
+    if (!candidate || !report) {
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+
+    const threshold = getSettings(user.id).threshold;
+    if (report.score.overall <= threshold) {
+      return NextResponse.json(
+        {
+          error: `Score must be above ${threshold}% to book a date`,
+          score: report.score.overall,
+        },
+        { status: 400 }
+      );
     }
 
     const slots = getMockFreeBusy();
     const slot = slots[0];
 
-    const profile = getProfile(user.id);
-    const run = getLatestRun(user.id);
-    const candidate = run?.candidates.find(
-      (c) => body.candidateId && c.id === body.candidateId
-    );
-
     const sharedInterests = [
       ...(profile.persona?.interests ?? []),
-      ...(candidate?.persona.interests ?? []),
+      ...candidate.persona.interests,
     ];
     const venue = getVenueRecommendation(sharedInterests);
 
     const proposal: DateProposal = {
       proposalId: `dp_${uid()}`,
       matchId: report.matchId,
-      candidateId: body.candidateId,
+      candidateId,
       when: slot,
       where: {
         venueName: venue.name,

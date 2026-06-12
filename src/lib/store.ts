@@ -4,8 +4,10 @@ import type {
   AgentRunRecord,
   AgentSettings,
   AppNotification,
+  CandidateProfile,
   DateFeedback,
   DateProposal,
+  MatchLifecycleRecord,
   UserProfileState,
   WarmupCall,
 } from "@/lib/types";
@@ -46,6 +48,24 @@ export function updateProfile(
 ): UserProfileState {
   const current = getProfile(userId);
   return saveProfile({ ...current, ...patch, userId });
+}
+
+export type ProfileReadiness = {
+  ready: boolean;
+  missing: string[];
+};
+
+export function getProfileReadiness(profile: UserProfileState): ProfileReadiness {
+  const missing: string[] = [];
+  if (!profile.basics) missing.push("Add your basics");
+  if (!profile.persona) missing.push("Build your agent profile");
+  if (profile.connectedSources.length === 0 && (profile.artifacts ?? []).length === 0) {
+    missing.push("Connect one source or add personal context");
+  }
+  if (profile.persona && !profile.persona.age) {
+    missing.push("Rebuild your profile with life-stage basics");
+  }
+  return { ready: missing.length === 0, missing };
 }
 
 // ── Agent settings ───────────────────────────────────────────────────
@@ -97,6 +117,135 @@ export function getLatestRun(userId: string): AgentRunRecord | null {
 
 export function newRunId(): string {
   return uid("run");
+}
+
+// Candidate marketplace
+
+export function saveCandidateProfile(candidate: CandidateProfile): CandidateProfile {
+  getDb()
+    .prepare(
+      `INSERT INTO candidate_profiles
+       (id, owner_user_id, source, visibility, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         owner_user_id = excluded.owner_user_id,
+         source = excluded.source,
+         visibility = excluded.visibility,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      candidate.id,
+      candidate.ownerUserId ?? null,
+      candidate.source,
+      candidate.visibility,
+      candidate.createdAt,
+      candidate.updatedAt,
+      JSON.stringify(candidate)
+    );
+  return candidate;
+}
+
+export function getCandidateProfile(candidateId: string): CandidateProfile | null {
+  const row = getDb()
+    .prepare("SELECT json FROM candidate_profiles WHERE id = ?")
+    .get(candidateId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as CandidateProfile) : null;
+}
+
+export function getVisibleCandidateProfiles(
+  userId: string,
+  limit = 50
+): CandidateProfile[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM candidate_profiles
+       WHERE visibility = 'visible' AND (owner_user_id IS NULL OR owner_user_id != ?)
+       ORDER BY updated_at DESC
+       LIMIT ?`
+    )
+    .all(userId, limit) as Array<{ json: string }>;
+  return rows.map((r) => JSON.parse(r.json) as CandidateProfile);
+}
+
+export function publishUserCandidateProfile(userId: string): CandidateProfile | null {
+  const profile = getProfile(userId);
+  if (!profile.persona) return null;
+  const now = Date.now();
+  return saveCandidateProfile({
+    id: `usercand_${userId}`,
+    ownerUserId: userId,
+    source: "user",
+    visibility: "visible",
+    persona: profile.persona,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+// Match lifecycle
+
+export function saveMatchLifecycle(record: MatchLifecycleRecord): MatchLifecycleRecord {
+  getDb()
+    .prepare(
+      `INSERT INTO match_lifecycles
+       (id, user_id, candidate_id, run_id, match_id, status, candidate_consent, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         status = excluded.status,
+         candidate_consent = excluded.candidate_consent,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      record.id,
+      record.userId,
+      record.candidateId,
+      record.runId,
+      record.matchId,
+      record.status,
+      record.candidateConsent,
+      record.createdAt,
+      record.updatedAt,
+      JSON.stringify(record)
+    );
+  return record;
+}
+
+export function getMatchLifecycle(userId: string, id: string): MatchLifecycleRecord | null {
+  const row = getDb()
+    .prepare("SELECT json FROM match_lifecycles WHERE id = ? AND user_id = ?")
+    .get(id, userId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as MatchLifecycleRecord) : null;
+}
+
+export function getMatchLifecycleForCandidate(
+  userId: string,
+  candidateId: string
+): MatchLifecycleRecord | null {
+  const row = getDb()
+    .prepare(
+      `SELECT json FROM match_lifecycles
+       WHERE user_id = ? AND candidate_id = ?
+       ORDER BY updated_at DESC LIMIT 1`
+    )
+    .get(userId, candidateId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as MatchLifecycleRecord) : null;
+}
+
+export function getMatchLifecycles(userId: string, limit = 50): MatchLifecycleRecord[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM match_lifecycles
+       WHERE user_id = ?
+       ORDER BY updated_at DESC LIMIT ?`
+    )
+    .all(userId, limit) as Array<{ json: string }>;
+  return rows.map((r) => JSON.parse(r.json) as MatchLifecycleRecord);
+}
+
+export function newMatchLifecycleId(): string {
+  return uid("mlc");
 }
 
 // ── Date proposals ───────────────────────────────────────────────────

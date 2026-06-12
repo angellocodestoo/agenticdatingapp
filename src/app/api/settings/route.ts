@@ -15,7 +15,11 @@ export async function POST(req: NextRequest) {
   const threshold = Number(body.threshold ?? current.threshold);
   const poolSize = Number(body.poolSize ?? current.poolSize);
   const radiusMiles = Number(body.radiusMiles ?? current.radiusMiles);
-  const paused = Boolean(body.paused ?? current.paused);
+  const rawPaused = body.paused ?? current.paused;
+  const paused =
+    typeof rawPaused === "string"
+      ? rawPaused.toLowerCase() === "true"
+      : Boolean(rawPaused);
 
   if (Number.isNaN(threshold) || threshold < 50 || threshold > 95) {
     return NextResponse.json(

@@ -2,18 +2,24 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import {
   addNotification,
+  getCandidateProfile,
   getLatestRun,
+  getMatchLifecycleForCandidate,
   getProfile,
+  getProfileReadiness,
   getProposal,
   getSettings,
+  newMatchLifecycleId,
   newRunId,
+  publishUserCandidateProfile,
   saveCall,
+  saveMatchLifecycle,
   saveProposal,
   saveRun,
 } from "@/lib/store";
 import { checkDealbreakerPair } from "@/lib/agent/scriptedEngine";
 import { getEngine } from "@/lib/agent/llmEngine";
-import { generateCandidates } from "@/lib/candidateGen";
+import { getMarketplaceCandidates } from "@/lib/marketplace";
 import {
   getMockFreeBusy,
   getVenueRecommendation,
@@ -170,6 +176,16 @@ export async function GET() {
   if (!profile.persona) {
     return NextResponse.json({ error: "Build your persona first" }, { status: 400 });
   }
+  const readiness = getProfileReadiness(profile);
+  if (!readiness.ready) {
+    return NextResponse.json(
+      {
+        error: "Finish your profile before sending your agent out.",
+        missing: readiness.missing,
+      },
+      { status: 400 }
+    );
+  }
 
   const settings = getSettings(user.id);
   if (settings.paused) {
@@ -181,7 +197,8 @@ export async function GET() {
 
   const threshold = settings.threshold;
   const me = profile.persona;
-  const candidates = generateCandidates(me, settings.poolSize);
+  publishUserCandidateProfile(user.id);
+  const candidates = getMarketplaceCandidates(user.id, me, settings.poolSize);
   const engine = await getEngine();
   const encoder = new TextEncoder();
   const reports: Record<string, MatchReport> = {};
@@ -505,6 +522,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No persona" }, { status: 400 });
     }
 
+    const candidateProfile = getCandidateProfile(candidate.id);
+    const requiresConsent = Boolean(candidateProfile?.ownerUserId);
+    const now = Date.now();
+    const lifecycle = saveMatchLifecycle({
+      id: newMatchLifecycleId(),
+      userId: user.id,
+      candidateId: candidate.id,
+      runId: run.id,
+      matchId: report.matchId,
+      status: requiresConsent ? "candidate_pending" : "mutual",
+      score: report.score.overall,
+      candidateOwnerUserId: candidateProfile?.ownerUserId,
+      candidateConsent: requiresConsent ? "pending" : "not_required",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    if (requiresConsent) {
+      addNotification(user.id, {
+        type: "agent_update",
+        title: `Interest sent to ${candidate.persona.displayName}`,
+        body: "Your date proposal will unlock after their agent confirms mutual interest.",
+        href: "/history",
+      });
+      return NextResponse.json({
+        pendingConsent: true,
+        lifecycle,
+        candidateName: candidate.persona.displayName,
+        report,
+      });
+    }
+
     const slots = getMockFreeBusy();
     const slot =
       slots.find((s) => {
@@ -529,9 +578,16 @@ export async function POST(req: Request) {
     };
 
     saveProposal(user.id, proposal);
+    saveMatchLifecycle({
+      ...lifecycle,
+      proposalId: proposal.proposalId,
+      status: "date_proposed",
+      updatedAt: Date.now(),
+    });
 
     return NextResponse.json({
       proposal,
+      lifecycle: { ...lifecycle, proposalId: proposal.proposalId, status: "date_proposed" },
       venueWhy: venue.why,
       candidateName: candidate.persona.displayName,
       report,
@@ -545,6 +601,17 @@ export async function POST(req: Request) {
     }
     proposal.status = response;
     saveProposal(user.id, proposal);
+    if (proposal.candidateId) {
+      const lifecycle = getMatchLifecycleForCandidate(user.id, proposal.candidateId);
+      if (lifecycle) {
+        saveMatchLifecycle({
+          ...lifecycle,
+          proposalId: proposal.proposalId,
+          status: response === "accepted" ? "accepted" : "declined",
+          updatedAt: Date.now(),
+        });
+      }
+    }
 
     if (response === "accepted") {
       const { start, end, reason } = scheduleWarmupCall(proposal.when.start);

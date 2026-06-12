@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { getProfile, updateProfile } from "@/lib/store";
+import { getProfile, publishUserCandidateProfile, updateProfile } from "@/lib/store";
 import { getMockSourceData } from "@/lib/integrations/mock";
 import { getEngine } from "@/lib/agent/llmEngine";
 import type { ConnectedSource, UserArtifact } from "@/lib/types";
+
+const GENDERS = new Set(["man", "woman", "nonbinary"]);
+const SEEKING = new Set(["men", "women", "everyone"]);
+const KIDS_INTENTS = new Set(["yes", "no", "open"]);
 
 export async function GET() {
   const user = await requireUser();
@@ -71,6 +75,15 @@ export async function POST(req: NextRequest) {
     const gender = String(body.gender ?? "man");
     const seeking = String(body.seeking ?? "women");
     const wantsKids = String(body.wantsKids ?? "open");
+    if (!GENDERS.has(gender)) {
+      return NextResponse.json({ error: "Choose a valid gender" }, { status: 400 });
+    }
+    if (!SEEKING.has(seeking)) {
+      return NextResponse.json({ error: "Choose who you want to meet" }, { status: 400 });
+    }
+    if (!KIDS_INTENTS.has(wantsKids)) {
+      return NextResponse.json({ error: "Choose a valid kids preference" }, { status: 400 });
+    }
     updateProfile(user.id, {
       basics: {
         age,
@@ -123,6 +136,7 @@ export async function POST(req: NextRequest) {
       basics: updated.basics,
     });
     updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
+    publishUserCandidateProfile(user.id);
     return NextResponse.json(getProfile(user.id));
   }
 
@@ -143,6 +157,7 @@ export async function POST(req: NextRequest) {
       basics: profile.basics,
     });
     updateProfile(user.id, { persona, lastProfiledAt: Date.now() });
+    publishUserCandidateProfile(user.id);
     return NextResponse.json(getProfile(user.id));
   }
 
@@ -153,6 +168,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No persona to update" }, { status: 400 });
     }
     updateProfile(user.id, { persona: { ...profile.persona, ...patch } });
+    publishUserCandidateProfile(user.id);
     return NextResponse.json(getProfile(user.id));
   }
 

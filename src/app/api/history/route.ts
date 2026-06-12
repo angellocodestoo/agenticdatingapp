@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import {
   getCalls,
   getFeedback,
+  getMatchLifecycles,
   getProposals,
   getRuns,
 } from "@/lib/store";
@@ -13,6 +14,7 @@ export async function GET() {
   const proposals = getProposals(user.id);
   const calls = getCalls(user.id);
   const feedback = getFeedback(user.id);
+  const matchLifecycles = getMatchLifecycles(user.id);
 
   // Resolve candidate names + reports from the run each proposal came from.
   const candidateIndex = new Map<
@@ -63,5 +65,15 @@ export async function GET() {
       })),
     })),
     dates,
+    matches: matchLifecycles.map((m) => ({
+      id: m.id,
+      candidateId: m.candidateId,
+      candidateName: candidateIndex.get(m.candidateId)?.name ?? "Unknown",
+      score: m.score,
+      status: m.status,
+      candidateConsent: m.candidateConsent,
+      proposalId: m.proposalId ?? null,
+      updatedAt: m.updatedAt,
+    })),
   });
 }

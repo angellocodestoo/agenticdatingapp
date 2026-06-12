@@ -1,4 +1,4 @@
-# Soulmate — Agentic Dating App
+# Red String - Agentic Dating App
 
 <p align="center">
   <strong>Your AI agent learns who you really are, talks to other agents, and only surfaces dates worth having.</strong>
@@ -14,9 +14,9 @@
 
 ---
 
-## What is Soulmate?
+## What is Red String?
 
-Soulmate is a **prototype agentic dating app** built for people who are too busy for swipe culture but still want intentional connection. Instead of browsing profiles yourself, you:
+Red String is an **agentic dating app** built for people who are too busy for swipe culture but still want intentional connection. Instead of browsing profiles yourself, you:
 
 1. **Connect your life** (Calendar, Spotify, LinkedIn — mocked in the demo)
 2. **Add personal context** in your own words
@@ -97,7 +97,7 @@ After you choose a match:
 
 ### Landing
 
-![Soulmate landing page](docs/screenshots/01-landing.png)
+![Red String landing page](docs/screenshots/01-landing.png)
 
 ### Onboarding — connect accounts + About me
 
