@@ -67,6 +67,7 @@ function scoreLogistics(me: Persona, them: Persona): { score: number; ageNote: s
       seeking: me.seeking,
       wantsKids: me.wantsKids,
       dealbreakers: me.dealbreakers,
+      agePrefOffset: me.agePrefOffset,
     },
     personaAge(them)
   );
@@ -567,6 +568,7 @@ function buildPersonaFromSources(input: BuildPersonaInput): Persona {
     gender: basics?.gender ?? existingPersona?.gender,
     seeking: basics?.seeking ?? existingPersona?.seeking,
     wantsKids: basics?.wantsKids ?? existingPersona?.wantsKids,
+    agePrefOffset: existingPersona?.agePrefOffset,
     ageRange: basics
       ? { min: basics.age - 1, max: basics.age + 1 }
       : existingPersona?.ageRange ?? { min: 30, max: 42 },

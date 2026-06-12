@@ -18,6 +18,7 @@ import type {
   PreferenceStrength,
   ValuePreference,
 } from "@/lib/types";
+import { preferredAgeWindow } from "@/lib/ageModel";
 
 const STRENGTH_UP: Record<PreferenceStrength, PreferenceStrength> = {
   low: "medium",
@@ -76,6 +77,40 @@ function applyLearnings(
   return { persona: { ...persona, values }, learnings };
 }
 
+/**
+ * Great dates recalibrate the age model: the personal offset drifts toward
+ * the rated person's age (EMA, capped ±5) so the population prior gives way
+ * to this user's revealed preference.
+ */
+function learnAgePreference(
+  persona: Persona,
+  candidate: Candidate
+): { persona: Persona; learning?: string } {
+  const myAge = persona.age;
+  const theirAge = candidate.persona.age;
+  if (!myAge || !theirAge) return { persona };
+
+  const baseWindow = preferredAgeWindow({
+    age: myAge,
+    gender: persona.gender,
+    seeking: persona.seeking,
+    wantsKids: persona.wantsKids,
+    dealbreakers: persona.dealbreakers,
+    // Base center, without the learned offset.
+    agePrefOffset: 0,
+  });
+  const observedDelta = theirAge - baseWindow.center;
+  const old = persona.agePrefOffset ?? 0;
+  const next = Math.max(-5, Math.min(5, Math.round((old * 0.6 + observedDelta * 0.4) * 10) / 10));
+  if (next === old) return { persona };
+
+  const newCenter = baseWindow.center + Math.round(next);
+  return {
+    persona: { ...persona, agePrefOffset: next },
+    learning: `Recalibrated your age sweet spot toward ${newCenter} — your great date with ${candidate.persona.displayName} (${theirAge}) outweighs the population average.`,
+  };
+}
+
 export async function GET() {
   const user = await requireUser();
   return NextResponse.json(getFeedback(user.id));
@@ -118,8 +153,14 @@ export async function POST(req: NextRequest) {
     const negative = !wouldSeeAgain && rating <= 2;
     if (positive || negative) {
       const result = applyLearnings(profile.persona, candidate, positive);
-      updateProfile(user.id, { persona: result.persona });
+      let persona = result.persona;
       learnings = result.learnings;
+      if (positive) {
+        const ageResult = learnAgePreference(persona, candidate);
+        persona = ageResult.persona;
+        if (ageResult.learning) learnings.push(ageResult.learning);
+      }
+      updateProfile(user.id, { persona });
     } else {
       learnings = [
         "Mixed signal recorded. Your agent keeps current weights but flags this profile shape as uncertain.",

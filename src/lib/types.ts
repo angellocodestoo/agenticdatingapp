@@ -83,6 +83,8 @@ export type Persona = {
   gender?: Gender;
   seeking?: SeekingPreference;
   wantsKids?: KidsIntent;
+  /** Learned per-user shift of the age sweet spot, from date feedback (±5). */
+  agePrefOffset?: number;
   location: {
     city: string;
     region?: string;

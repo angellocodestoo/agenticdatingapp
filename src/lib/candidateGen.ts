@@ -117,6 +117,7 @@ export function generateCandidates(me: Persona, count = 5): Candidate[] {
     seeking: me.seeking,
     wantsKids: me.wantsKids,
     dealbreakers: me.dealbreakers,
+    agePrefOffset: me.agePrefOffset,
   });
   const sampleAge = (): number => {
     const r = Math.random();

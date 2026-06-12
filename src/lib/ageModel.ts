@@ -71,6 +71,8 @@ export function preferredAgeWindow(p: {
   seeking?: SeekingPreference;
   wantsKids?: KidsIntent;
   dealbreakers?: Dealbreaker[];
+  /** Learned per-user adjustment from date feedback (years, ±5 max). */
+  agePrefOffset?: number;
 }): AgeWindow {
   const age = p.age;
   const kids = kidsIntent({ wantsKids: p.wantsKids, dealbreakers: p.dealbreakers ?? [] });
@@ -90,14 +92,23 @@ export function preferredAgeWindow(p: {
     const strength = kids === "yes" ? 1 : 0.5;
     if (seekingWomen && age >= 31) {
       // Family-minded man: window skews younger as he ages — biological
-      // timing lives on his partner's side.
-      center -= Math.min(6, (age - 29) * 0.5) * strength;
+      // timing lives on his partner's side. Calibrated to the kids-
+      // conditional gap data (couples who go on to have children run
+      // 4-7 years man-older), not the overall-marriage average:
+      // 36 → sweet spot ~28-29.
+      center -= Math.min(8, (age - 29) * 0.8) * strength;
     }
     if (seekingMen && age <= 33) {
       // Family-minded woman: skew toward men at family-readiness (~35,
       // established career, done exploring).
       center += Math.min(7, Math.max(0, 35 - age) * 0.6) * strength;
     }
+  }
+
+  // Personal calibration learned from rated dates overrides the population
+  // prior, capped so one great outlier date can't swing the whole window.
+  if (p.agePrefOffset) {
+    center += Math.max(-5, Math.min(5, p.agePrefOffset));
   }
   // kids === "no": timing pressure gone; same-stage companionship dominates.
   // The maturity offset above is the only remaining skew.
@@ -119,7 +130,14 @@ export type AgeAlignment = {
 };
 
 export function ageAlignment(
-  me: { age: number; gender?: Gender; seeking?: SeekingPreference; wantsKids?: KidsIntent; dealbreakers?: Dealbreaker[] },
+  me: {
+    age: number;
+    gender?: Gender;
+    seeking?: SeekingPreference;
+    wantsKids?: KidsIntent;
+    dealbreakers?: Dealbreaker[];
+    agePrefOffset?: number;
+  },
   themAge: number
 ): AgeAlignment {
   const window = preferredAgeWindow(me);
