@@ -12,10 +12,12 @@ import type {
   HouseholdEligibility,
   HouseholdDecision,
   HouseholdGoal,
+  HouseholdInsightSummary,
   HouseholdMemory,
   HouseholdMember,
   HouseholdRecord,
   HouseholdReview,
+  HouseholdResilienceSignal,
   HouseholdResponsibility,
   HouseholdRitual,
   MatchLifecycleRecord,
@@ -1395,6 +1397,119 @@ export function getHouseholdMemory(
   };
 }
 
+export function getHouseholdInsightSummary(
+  userId: string,
+  householdId: string
+): { summary?: HouseholdInsightSummary; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const responsibilities = getHouseholdResponsibilities(userId, householdId).responsibilities ?? [];
+  const rituals = getHouseholdRituals(userId, householdId).rituals ?? [];
+  const decisions = getHouseholdDecisions(userId, householdId).decisions ?? [];
+  const goals = getHouseholdGoals(userId, householdId).goals ?? [];
+  const reviews = getHouseholdReviews(userId, householdId, 10).reviews ?? [];
+  const memory = getHouseholdMemory(userId, householdId, 50).memory ?? [];
+  const openResponsibilities = responsibilities.filter((item) => item.status === "open").length;
+  const completedResponsibilities = responsibilities.filter((item) => item.status === "completed").length;
+  const activeRituals = rituals.filter((item) => item.status === "active").length;
+  const completedRituals = rituals.filter((item) => item.status === "completed").length;
+  const openDecisions = decisions.filter((item) => item.status === "open").length;
+  const resolvedDecisions = decisions.filter((item) => item.status === "resolved").length;
+  const activeGoals = goals.filter((item) => item.status === "active").length;
+  const completedGoals = goals.filter((item) => item.status === "completed").length;
+  const signals: HouseholdResilienceSignal[] = [];
+  const avgLoad = average(reviews.map((item) => item.logisticsLoad));
+  const avgConnection = average(reviews.map((item) => item.connectionSense));
+  const avgFairness = average(reviews.map((item) => item.fairnessSense));
+
+  if (openResponsibilities >= 5) {
+    signals.push({
+      id: "many_open_responsibilities",
+      severity: "medium",
+      label: "Many open responsibilities",
+      reason: "The household has several open obligations at once.",
+      repairAction: "Pick one owner and one backup for the top two responsibilities this week.",
+    });
+  }
+  if (activeRituals > 0 && completedRituals === 0) {
+    signals.push({
+      id: "rituals_not_completed",
+      severity: "low",
+      label: "Protected rituals need follow-through",
+      reason: "Rituals exist, but none have been completed yet.",
+      repairAction: "Choose the smallest ritual and protect it before adding new logistics.",
+    });
+  }
+  if (openDecisions >= 3) {
+    signals.push({
+      id: "decision_backlog",
+      severity: "medium",
+      label: "Decision backlog",
+      reason: "Multiple household decisions are open.",
+      repairAction: "Resolve, archive, or assign research for one decision before opening another.",
+    });
+  }
+  if (avgLoad !== null && avgLoad >= 4) {
+    signals.push({
+      id: "high_logistics_load",
+      severity: "medium",
+      label: "High logistics load",
+      reason: "Recent reviews show household load feeling heavy.",
+      repairAction: "Do a 15-minute load audit and remove one nonessential task.",
+    });
+  }
+  if (avgConnection !== null && avgConnection <= 2.5) {
+    signals.push({
+      id: "low_connection",
+      severity: "medium",
+      label: "Connection needs protection",
+      reason: "Recent reviews show connection feeling lower.",
+      repairAction: "Schedule one no-logistics ritual before the next planning conversation.",
+    });
+  }
+  if (avgFairness !== null && avgFairness <= 2.5) {
+    signals.push({
+      id: "fairness_pressure",
+      severity: "medium",
+      label: "Fairness pressure",
+      reason: "Recent reviews suggest the load may not feel balanced.",
+      repairAction: "Name the invisible work and make one explicit handoff.",
+    });
+  }
+
+  for (const signal of signals) {
+    trackEvent(userId, "household_resilience_signal_surfaced", {
+      householdId,
+      signalId: signal.id,
+      severity: signal.severity,
+    });
+  }
+  trackEvent(userId, "household_guidance_viewed", {
+    householdId,
+    signalCount: signals.length,
+  });
+
+  return {
+    summary: {
+      householdId,
+      responsibilityOpenCount: openResponsibilities,
+      responsibilityCompletedCount: completedResponsibilities,
+      ritualActiveCount: activeRituals,
+      ritualCompletedCount: completedRituals,
+      decisionOpenCount: openDecisions,
+      decisionResolvedCount: resolvedDecisions,
+      goalActiveCount: activeGoals,
+      goalCompletedCount: completedGoals,
+      reviewCount: reviews.length,
+      memoryCount: memory.length,
+      signals,
+      guidance:
+        signals[0]?.repairAction ??
+        "Protect one ritual, clarify one responsibility, and record one memory this week.",
+    },
+  };
+}
+
 function relationshipStatusFromMembers(
   members: RelationshipMember[]
 ): RelationshipRecord["status"] {
@@ -2059,6 +2174,24 @@ export function getAnalyticsSummary(userId: string) {
       guidanceViews: count("relationship_guidance_viewed"),
       frictionSignals: count("relationship_friction_signal_surfaced"),
       safetyDisabled: count("relationship_mode_safety_disabled"),
+    },
+    household: {
+      invitationsCreated: count("household_invitation_created"),
+      invitationsAccepted: count("household_invitation_accepted"),
+      profileUpdated: count("household_profile_updated"),
+      responsibilitiesCreated: count("household_responsibility_created"),
+      responsibilitiesCompleted: count("household_responsibility_completed"),
+      ritualsCreated: count("household_ritual_created"),
+      ritualsCompleted: count("household_ritual_completed"),
+      decisionsCreated: count("household_decision_created"),
+      decisionsResolved: count("household_decision_resolved"),
+      goalsCreated: count("household_goal_created"),
+      goalsCompleted: count("household_goal_completed"),
+      reviewsSubmitted: count("household_weekly_review_submitted"),
+      memoryCreated: count("household_memory_created"),
+      resilienceSignals: count("household_resilience_signal_surfaced"),
+      guidanceViews: count("household_guidance_viewed"),
+      safetyDisabled: count("household_mode_safety_disabled"),
     },
     recent: events.slice(0, 12),
   };

@@ -497,6 +497,30 @@ export type HouseholdMemory = {
   createdAt: number;
 };
 
+export type HouseholdResilienceSignal = {
+  id: string;
+  severity: "low" | "medium" | "high";
+  label: string;
+  reason: string;
+  repairAction: string;
+};
+
+export type HouseholdInsightSummary = {
+  householdId: string;
+  responsibilityOpenCount: number;
+  responsibilityCompletedCount: number;
+  ritualActiveCount: number;
+  ritualCompletedCount: number;
+  decisionOpenCount: number;
+  decisionResolvedCount: number;
+  goalActiveCount: number;
+  goalCompletedCount: number;
+  reviewCount: number;
+  memoryCount: number;
+  signals: HouseholdResilienceSignal[];
+  guidance: string;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -565,7 +589,9 @@ export type AnalyticsEventName =
   | "household_goal_created"
   | "household_goal_completed"
   | "household_weekly_review_submitted"
-  | "household_memory_created";
+  | "household_memory_created"
+  | "household_resilience_signal_surfaced"
+  | "household_guidance_viewed";
 
 export type AnalyticsEvent = {
   id: string;

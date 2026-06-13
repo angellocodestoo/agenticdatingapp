@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth";
 import {
   getAnalyticsSummary,
   getFeedback,
+  getHouseholdInsightSummary,
+  getHouseholdsForUser,
   getProfile,
   getProposals,
   getRelationshipInsightSummary,
@@ -19,6 +21,18 @@ export async function GET() {
   const feedback = getFeedback(user.id);
   const proposals = getProposals(user.id);
   const analytics = getAnalyticsSummary(user.id);
+  const householdInsights = getHouseholdsForUser(user.id)
+    .map((entry) => {
+      const result = getHouseholdInsightSummary(user.id, entry.household.id);
+      return result.summary
+        ? {
+            status: entry.household.status,
+            stage: entry.household.stage,
+            ...result.summary,
+          }
+        : null;
+    })
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== null);
   const relationshipInsights = getRelationshipsForUser(user.id)
     .map((entry) => {
       const result = getRelationshipInsightSummary(user.id, entry.relationship.id);
@@ -136,6 +150,7 @@ export async function GET() {
           : null,
     },
     analytics,
+    householdInsights,
     relationshipInsights,
     predictionAccuracy,
     learnings,

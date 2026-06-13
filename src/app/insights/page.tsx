@@ -65,8 +65,43 @@ type Insights = {
       frictionSignals: number;
       safetyDisabled: number;
     };
+    household: {
+      invitationsCreated: number;
+      invitationsAccepted: number;
+      profileUpdated: number;
+      responsibilitiesCreated: number;
+      responsibilitiesCompleted: number;
+      ritualsCreated: number;
+      ritualsCompleted: number;
+      decisionsCreated: number;
+      decisionsResolved: number;
+      goalsCreated: number;
+      goalsCompleted: number;
+      reviewsSubmitted: number;
+      memoryCreated: number;
+      resilienceSignals: number;
+      guidanceViews: number;
+      safetyDisabled: number;
+    };
     recent: Array<{ id: string; name: string; createdAt: number }>;
   };
+  householdInsights: Array<{
+    householdId: string;
+    status: string;
+    stage: string;
+    responsibilityOpenCount: number;
+    responsibilityCompletedCount: number;
+    ritualActiveCount: number;
+    ritualCompletedCount: number;
+    decisionOpenCount: number;
+    decisionResolvedCount: number;
+    goalActiveCount: number;
+    goalCompletedCount: number;
+    reviewCount: number;
+    memoryCount: number;
+    signals: Array<{ id: string; severity: "low" | "medium" | "high"; label: string; reason: string; repairAction: string }>;
+    guidance: string;
+  }>;
   relationshipInsights: Array<{
     relationshipId: string;
     status: string;
@@ -556,6 +591,71 @@ export default function InsightsPage() {
           ) : (
             <p className="text-sm text-stone-500">
               No relationship spaces yet. Once a match enters relationship mode, this becomes the early-relationship health surface.
+            </p>
+          )}
+        </section>
+
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-700">Phase 3 household OS</h2>
+            <p className="text-xs text-stone-400 mt-1">
+              Shared-life activity across household mode, responsibilities, rituals, decisions, goals, reviews, and memory.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Household invites", value: data.analytics.household.invitationsCreated },
+              { label: "Accepted", value: data.analytics.household.invitationsAccepted },
+              { label: "Responsibilities", value: data.analytics.household.responsibilitiesCreated },
+              { label: "Resp complete", value: data.analytics.household.responsibilitiesCompleted },
+              { label: "Rituals", value: data.analytics.household.ritualsCreated },
+              { label: "Decisions", value: data.analytics.household.decisionsCreated },
+              { label: "Goals", value: data.analytics.household.goalsCreated },
+              { label: "Reviews", value: data.analytics.household.reviewsSubmitted },
+              { label: "Memory", value: data.analytics.household.memoryCreated },
+              { label: "Signals", value: data.analytics.household.resilienceSignals },
+              { label: "Guidance", value: data.analytics.household.guidanceViews },
+              { label: "Safety disabled", value: data.analytics.household.safetyDisabled },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-stone-50 border border-stone-100 p-3">
+                <p className="text-xl font-bold text-stone-800">{item.value}</p>
+                <p className="text-[11px] text-stone-400 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          {data.householdInsights.length > 0 ? (
+            <div className="space-y-3">
+              {data.householdInsights.map((summary) => (
+                <div key={summary.householdId} className="rounded-xl border border-stone-100 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-stone-800 capitalize">{summary.stage.replace(/_/g, " ")}</p>
+                      <p className="text-xs text-stone-400">
+                        {summary.responsibilityOpenCount} open responsibilities, {summary.decisionOpenCount} open decisions, {summary.memoryCount} memories
+                      </p>
+                    </div>
+                    <span className="text-xs bg-stone-100 text-stone-600 rounded-full px-2.5 py-1">{summary.status}</span>
+                  </div>
+                  {summary.signals.length > 0 ? (
+                    <div className="space-y-2">
+                      {summary.signals.slice(0, 3).map((signal) => (
+                        <div key={signal.id} className="rounded-lg bg-amber-50 border border-amber-100 p-3">
+                          <p className="text-sm font-medium text-amber-800">{signal.label}</p>
+                          <p className="text-xs text-amber-700 mt-0.5">{signal.reason}</p>
+                          <p className="text-xs text-amber-700 mt-1">Next: {signal.repairAction}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-stone-500">No resilience signals surfaced from explicit household activity.</p>
+                  )}
+                  <p className="text-xs text-stone-500">{summary.guidance}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500">
+              No household spaces yet. Once a relationship graduates, this becomes the shared-life operating report.
             </p>
           )}
         </section>

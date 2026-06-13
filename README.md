@@ -15,6 +15,7 @@ Red String is an agentic relationship product for people who want fewer, better 
 9. Supports reporting, blocking, rate limits, moderation checks, analytics, and local persistence.
 10. Converts eligible mutual matches into relationship mode with consent from both partners.
 11. Coordinates shared plans, check-ins, partner preferences, communication guidance, and friction signals.
+12. Graduates active relationships into household mode for responsibilities, rituals, decisions, goals, reviews, memory, and resilience insights.
 
 ## Quick Start
 
@@ -41,6 +42,12 @@ Open [http://localhost:3000](http://localhost:3000).
 | 8 | `/relationship/settings` | Set partner preferences, shared profile fields, and sharing level |
 | 9 | `/relationship/planner` | Suggest, accept, decline, and complete shared plans |
 | 10 | `/relationship/check-in` | Submit private or shared check-ins and review guidance |
+| 11 | `/household` | Review household-mode state, consent, and shared-life next actions |
+| 12 | `/household/settings` | Configure household profile, rituals, domains, goals, and sharing |
+| 13 | `/household/responsibilities` | Create and complete responsibilities and protected rituals |
+| 14 | `/household/goals` | Structure shared decisions and long-term goals |
+| 15 | `/household/review` | Submit weekly reviews for energy, fairness, load, and connection |
+| 16 | `/household/memory` | Preserve private or shared partnership memory |
 
 ## Phase 1 Capabilities
 
@@ -131,6 +138,45 @@ This makes production swaps for calendar availability, places, and phone masking
 - Guidance views
 - Friction signals surfaced
 
+## Phase 3 Capabilities
+
+### Household Mode
+
+- Active relationship-to-household upgrade
+- Two-sided household membership
+- Accept, decline, pause, resume, and leave actions
+- Safety actions disable household mode
+- Household dashboard
+
+### Shared-Life Profile
+
+- Household stage
+- Home base and commitment context
+- Planning cadence
+- Protected rituals
+- Responsibility areas
+- Sensitive domains
+- Long-term goals
+- Legacy notes
+
+### Responsibilities And Rituals
+
+- Household responsibilities with owner, backup, cadence, due date, load, and handoff notes
+- Protected rituals tracked separately from tasks
+- Complete, pause, and update flows
+
+### Decisions And Goals
+
+- Structured decisions with domain, options, pros, concerns, deadline, and outcome
+- Long-term goals with category, target date, notes, milestones, and completion
+
+### Reviews, Memory, And Resilience
+
+- Weekly reviews for energy, logistics load, fairness, connection, appreciation, friction, and next priorities
+- Private, summary, or shared household memory
+- Non-diagnostic resilience signals
+- Phase 3 analytics in `/insights`
+
 ## Architecture
 
 ```mermaid
@@ -164,6 +210,12 @@ flowchart LR
 | Shared planner | `src/app/api/relationships/[id]/plans/route.ts`, `src/app/relationship/planner/page.tsx` |
 | Check-ins and guidance | `src/app/api/relationships/[id]/check-ins/route.ts`, `src/app/relationship/check-in/page.tsx` |
 | Friction insights | `src/app/api/relationships/[id]/insights/route.ts` |
+| Households | `src/app/api/households/route.ts`, `src/app/household/page.tsx` |
+| Household settings | `src/app/api/households/[id]/route.ts`, `src/app/household/settings/page.tsx` |
+| Responsibilities and rituals | `src/app/api/households/[id]/responsibilities/route.ts`, `src/app/api/households/[id]/rituals/route.ts`, `src/app/household/responsibilities/page.tsx` |
+| Decisions and goals | `src/app/api/households/[id]/decisions/route.ts`, `src/app/api/households/[id]/goals/route.ts`, `src/app/household/goals/page.tsx` |
+| Reviews and memory | `src/app/api/households/[id]/reviews/route.ts`, `src/app/api/households/[id]/memory/route.ts`, `src/app/household/review/page.tsx`, `src/app/household/memory/page.tsx` |
+| Household insights | `src/app/api/households/[id]/insights/route.ts` |
 
 ## Configuration
 
