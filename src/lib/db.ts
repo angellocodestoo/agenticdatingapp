@@ -124,6 +124,26 @@ function open(): Database.Database {
       created_at INTEGER NOT NULL,
       json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS households (
+      id TEXT PRIMARY KEY,
+      source_relationship_id TEXT NOT NULL REFERENCES relationships(id),
+      created_by_user_id TEXT NOT NULL REFERENCES users(id),
+      stage TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS household_members (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL,
+      sharing_level TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -170,6 +190,10 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_relationship_plans_status ON relationship_plans(status, scheduled_for);
     CREATE INDEX IF NOT EXISTS idx_relationship_check_ins_relationship ON relationship_check_ins(relationship_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_relationship_check_ins_user ON relationship_check_ins(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_households_source_relationship ON households(source_relationship_id);
+    CREATE INDEX IF NOT EXISTS idx_households_created_by ON households(created_by_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_household_members_user ON household_members(user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id);
     CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC);

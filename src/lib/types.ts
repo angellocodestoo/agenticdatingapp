@@ -330,6 +330,73 @@ export type RelationshipInsightSummary = {
   guidance: RelationshipGuidance;
 };
 
+export type HouseholdStage =
+  | "shared_life"
+  | "engaged"
+  | "married"
+  | "family"
+  | "legacy";
+
+export type HouseholdStatus =
+  | "pending"
+  | "active"
+  | "paused"
+  | "ended"
+  | "safety_disabled";
+
+export type HouseholdMemberStatus =
+  | "invited"
+  | "accepted"
+  | "declined"
+  | "paused"
+  | "left"
+  | "removed_for_safety";
+
+export type HouseholdSharingLevel = "private" | "summary" | "shared";
+
+export type HouseholdRecord = {
+  id: string;
+  sourceRelationshipId: string;
+  createdByUserId: string;
+  partnerUserIds: string[];
+  stage: HouseholdStage;
+  status: HouseholdStatus;
+  createdAt: number;
+  updatedAt: number;
+  profile: {
+    homeBase?: string;
+    commitmentStage?: string;
+    planningCadence?: string;
+    protectedRituals: string[];
+    responsibilityAreas: string[];
+    sensitiveDomains: string[];
+    longTermGoals: string[];
+    legacyNotes?: string;
+  };
+};
+
+export type HouseholdMember = {
+  id: string;
+  householdId: string;
+  userId: string;
+  status: HouseholdMemberStatus;
+  sharingLevel: HouseholdSharingLevel;
+  createdAt: number;
+  updatedAt: number;
+  preferences: {
+    loadPreference?: string;
+    planningRole?: string;
+    reviewCadence?: string;
+    privateNotes?: string;
+  };
+};
+
+export type HouseholdEligibility = {
+  eligible: boolean;
+  reason?: string;
+  relationship?: RelationshipRecord;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -380,7 +447,8 @@ export type AnalyticsEventName =
   | "relationship_plan_completed"
   | "relationship_check_in_submitted"
   | "relationship_guidance_viewed"
-  | "relationship_friction_signal_surfaced";
+  | "relationship_friction_signal_surfaced"
+  | "household_invitation_created";
 
 export type AnalyticsEvent = {
   id: string;

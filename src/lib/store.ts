@@ -9,6 +9,9 @@ import type {
   CandidateProfile,
   DateFeedback,
   DateProposal,
+  HouseholdEligibility,
+  HouseholdMember,
+  HouseholdRecord,
   MatchLifecycleRecord,
   RelationshipCheckIn,
   RelationshipEligibility,
@@ -524,6 +527,209 @@ export function createRelationshipInvitation(
     partnerUserId: lifecycle.candidateOwnerUserId,
   });
   return { relationship, members };
+}
+
+// Household mode
+
+export function saveHousehold(record: HouseholdRecord): HouseholdRecord {
+  getDb()
+    .prepare(
+      `INSERT INTO households
+       (id, source_relationship_id, created_by_user_id, stage, status, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         stage = excluded.stage,
+         status = excluded.status,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      record.id,
+      record.sourceRelationshipId,
+      record.createdByUserId,
+      record.stage,
+      record.status,
+      record.createdAt,
+      record.updatedAt,
+      JSON.stringify(record)
+    );
+  return record;
+}
+
+export function saveHouseholdMember(member: HouseholdMember): HouseholdMember {
+  getDb()
+    .prepare(
+      `INSERT INTO household_members
+       (id, household_id, user_id, status, sharing_level, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         status = excluded.status,
+         sharing_level = excluded.sharing_level,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      member.id,
+      member.householdId,
+      member.userId,
+      member.status,
+      member.sharingLevel,
+      member.createdAt,
+      member.updatedAt,
+      JSON.stringify(member)
+    );
+  return member;
+}
+
+export function getHousehold(id: string): HouseholdRecord | null {
+  const row = getDb()
+    .prepare("SELECT json FROM households WHERE id = ?")
+    .get(id) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as HouseholdRecord) : null;
+}
+
+export function getHouseholdMembers(householdId: string): HouseholdMember[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM household_members
+       WHERE household_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(householdId) as Array<{ json: string }>;
+  return rows.map((r) => JSON.parse(r.json) as HouseholdMember);
+}
+
+export function getHouseholdMember(
+  householdId: string,
+  userId: string
+): HouseholdMember | null {
+  const row = getDb()
+    .prepare(
+      `SELECT json FROM household_members
+       WHERE household_id = ? AND user_id = ?
+       LIMIT 1`
+    )
+    .get(householdId, userId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as HouseholdMember) : null;
+}
+
+export function getHouseholdsForUser(userId: string): Array<{
+  household: HouseholdRecord;
+  members: HouseholdMember[];
+}> {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT h.json
+       FROM households h
+       INNER JOIN household_members m ON m.household_id = h.id
+       WHERE m.user_id = ?
+       ORDER BY h.updated_at DESC`
+    )
+    .all(userId) as Array<{ json: string }>;
+  return rows.map((r) => {
+    const household = JSON.parse(r.json) as HouseholdRecord;
+    return {
+      household,
+      members: getHouseholdMembers(household.id),
+    };
+  });
+}
+
+export function getHouseholdBySourceRelationship(
+  sourceRelationshipId: string
+): HouseholdRecord | null {
+  const row = getDb()
+    .prepare(
+      `SELECT json FROM households
+       WHERE source_relationship_id = ?
+       ORDER BY updated_at DESC LIMIT 1`
+    )
+    .get(sourceRelationshipId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as HouseholdRecord) : null;
+}
+
+export function getHouseholdEligibility(
+  userId: string,
+  relationshipId: string
+): HouseholdEligibility {
+  const relationship = getRelationship(relationshipId);
+  if (!relationship) return { eligible: false, reason: "Relationship not found" };
+  const currentMember = getRelationshipMember(relationshipId, userId);
+  if (!currentMember) {
+    return { eligible: false, reason: "Relationship membership not found", relationship };
+  }
+  if (relationship.status !== "active") {
+    return { eligible: false, reason: "Relationship mode must be active first", relationship };
+  }
+  if (relationship.partnerUserIds.length < 2) {
+    return { eligible: false, reason: "Household mode requires both partners", relationship };
+  }
+  const members = getRelationshipMembers(relationshipId);
+  if (members.length < 2 || !members.every((member) => member.status === "accepted")) {
+    return { eligible: false, reason: "Both partners must accept relationship mode first", relationship };
+  }
+  if (getHouseholdBySourceRelationship(relationshipId)) {
+    return { eligible: false, reason: "Household mode already exists for this relationship", relationship };
+  }
+  if (members.some((member) => member.status === "removed_for_safety")) {
+    return { eligible: false, reason: "Safety-disabled relationships cannot upgrade", relationship };
+  }
+  return { eligible: true, relationship };
+}
+
+export function createHouseholdInvitation(
+  userId: string,
+  relationshipId: string
+): {
+  household?: HouseholdRecord;
+  members?: HouseholdMember[];
+  error?: string;
+} {
+  const eligibility = getHouseholdEligibility(userId, relationshipId);
+  if (!eligibility.eligible || !eligibility.relationship) {
+    return { error: eligibility.reason ?? "This relationship is not eligible" };
+  }
+  const relationship = eligibility.relationship;
+  const now = Date.now();
+  const household: HouseholdRecord = {
+    id: uid("hh"),
+    sourceRelationshipId: relationship.id,
+    createdByUserId: userId,
+    partnerUserIds: relationship.partnerUserIds,
+    stage: "shared_life",
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+    profile: {
+      planningCadence: relationship.profile.planningCadence,
+      protectedRituals: relationship.profile.qualityTimePreferences,
+      responsibilityAreas: [],
+      sensitiveDomains: [],
+      longTermGoals: relationship.profile.nextThirtyDayGoal
+        ? [relationship.profile.nextThirtyDayGoal]
+        : [],
+      legacyNotes: undefined,
+    },
+  };
+  saveHousehold(household);
+  const members = relationship.partnerUserIds.map((partnerUserId) =>
+    saveHouseholdMember({
+      id: uid("hhm"),
+      householdId: household.id,
+      userId: partnerUserId,
+      status: partnerUserId === userId ? "accepted" : "invited",
+      sharingLevel: "summary",
+      createdAt: now,
+      updatedAt: now,
+      preferences: {},
+    })
+  );
+  trackEvent(userId, "household_invitation_created", {
+    householdId: household.id,
+    relationshipId,
+    partnerUserIds: relationship.partnerUserIds,
+  });
+  return { household, members };
 }
 
 function relationshipStatusFromMembers(
