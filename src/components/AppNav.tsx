@@ -11,6 +11,7 @@ const LINKS: Array<{ href: string; label: string }> = [
   { href: "/agent-run", label: "Agent" },
   { href: "/history", label: "Dates" },
   { href: "/relationship", label: "Relationship" },
+  { href: "/household", label: "Household" },
   { href: "/insights", label: "Insights" },
   { href: "/settings", label: "Settings" },
 ];

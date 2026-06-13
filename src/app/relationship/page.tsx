@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { RelationshipMember, RelationshipRecord } from "@/lib/types";
+import type { HouseholdRecord, RelationshipMember, RelationshipRecord } from "@/lib/types";
 
 type RelationshipEntry = {
   relationship: RelationshipRecord;
@@ -16,6 +16,10 @@ type RelationshipEntry = {
     status: string;
     proposalId: string | null;
   } | null;
+};
+
+type HouseholdEntry = {
+  household: HouseholdRecord;
 };
 
 function statusCopy(status: RelationshipRecord["status"]) {
@@ -36,24 +40,36 @@ function statusClass(status: RelationshipRecord["status"]) {
 
 export default function RelationshipPage() {
   const [relationships, setRelationships] = useState<RelationshipEntry[]>([]);
+  const [households, setHouseholds] = useState<HouseholdEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyHouseholdId, setBusyHouseholdId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const res = await fetch("/api/relationships");
-    const data = await res.json();
-    setRelationships(data.relationships ?? []);
+    const [relationshipRes, householdRes] = await Promise.all([
+      fetch("/api/relationships"),
+      fetch("/api/households"),
+    ]);
+    const [relationshipData, householdData] = await Promise.all([
+      relationshipRes.json(),
+      householdRes.json(),
+    ]);
+    setRelationships(relationshipData.relationships ?? []);
+    setHouseholds(householdData.households ?? []);
     setLoaded(true);
   }, []);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/relationships")
-      .then((res) => res.json())
-      .then((data) => {
+    Promise.all([fetch("/api/relationships"), fetch("/api/households")])
+      .then(([relationshipRes, householdRes]) =>
+        Promise.all([relationshipRes.json(), householdRes.json()])
+      )
+      .then(([relationshipData, householdData]) => {
         if (!active) return;
-        setRelationships(data.relationships ?? []);
+        setRelationships(relationshipData.relationships ?? []);
+        setHouseholds(householdData.households ?? []);
         setLoaded(true);
       });
     return () => {
@@ -76,6 +92,24 @@ export default function RelationshipPage() {
       return;
     }
     setMessage("Relationship mode updated.");
+    refresh();
+  }
+
+  async function openHouseholdMode(relationshipId: string) {
+    setBusyHouseholdId(relationshipId);
+    setMessage(null);
+    const res = await fetch("/api/households", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ relationshipId }),
+    });
+    const data = await res.json();
+    setBusyHouseholdId(null);
+    if (!res.ok) {
+      setMessage(data.error ?? "Could not open household mode.");
+      return;
+    }
+    setMessage("Household mode invitation created.");
     refresh();
   }
 
@@ -121,6 +155,9 @@ export default function RelationshipPage() {
               const relationship = entry.relationship;
               const myMember = entry.currentMember;
               const invited = entry.members.some((m) => m.status === "invited");
+              const householdExists = households.some(
+                (household) => household.household.sourceRelationshipId === relationship.id
+              );
               return (
                 <div
                   key={relationship.id}
@@ -205,6 +242,23 @@ export default function RelationshipPage() {
                     >
                       Settings
                     </Link>
+                    {relationship.status === "active" &&
+                      (householdExists ? (
+                        <Link
+                          href="/household"
+                          className="rounded-full bg-rose-500 text-white text-sm font-medium px-4 py-2 hover:bg-rose-600"
+                        >
+                          View household mode
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => openHouseholdMode(relationship.id)}
+                          disabled={busyHouseholdId === relationship.id}
+                          className="rounded-full bg-rose-500 text-white text-sm font-medium px-4 py-2 hover:bg-rose-600 disabled:opacity-50"
+                        >
+                          {busyHouseholdId === relationship.id ? "Opening..." : "Tie the knot"}
+                        </button>
+                      ))}
                     {relationship.status === "pending" && myMember?.status === "invited" && (
                       <>
                         <button
