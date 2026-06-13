@@ -5,6 +5,8 @@ import {
   getFeedback,
   getProfile,
   getProposals,
+  getRelationshipInsightSummary,
+  getRelationshipsForUser,
   getRuns,
 } from "@/lib/store";
 import { computeProfileConfidence } from "@/lib/confidence";
@@ -17,6 +19,19 @@ export async function GET() {
   const feedback = getFeedback(user.id);
   const proposals = getProposals(user.id);
   const analytics = getAnalyticsSummary(user.id);
+  const relationshipInsights = getRelationshipsForUser(user.id)
+    .map((entry) => {
+      const result = getRelationshipInsightSummary(user.id, entry.relationship.id);
+      return result.summary
+        ? {
+            partnerUserIds: entry.relationship.partnerUserIds,
+            status: entry.relationship.status,
+            stage: entry.relationship.stage,
+            ...result.summary,
+          }
+        : null;
+    })
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== null);
 
   const persona = profile.persona ?? null;
 
@@ -121,6 +136,7 @@ export async function GET() {
           : null,
     },
     analytics,
+    relationshipInsights,
     predictionAccuracy,
     learnings,
   });

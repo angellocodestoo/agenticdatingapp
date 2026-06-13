@@ -54,8 +54,41 @@ type Insights = {
       datesAccepted: number;
       feedbackSubmitted: number;
     };
+    relationship: {
+      invitationsCreated: number;
+      invitationsAccepted: number;
+      plansSuggested: number;
+      plansAccepted: number;
+      plansCompleted: number;
+      checkInsSubmitted: number;
+      guidanceViews: number;
+      frictionSignals: number;
+      safetyDisabled: number;
+    };
     recent: Array<{ id: string; name: string; createdAt: number }>;
   };
+  relationshipInsights: Array<{
+    relationshipId: string;
+    status: string;
+    stage: string;
+    checkInCount: number;
+    sharedCheckInCount: number;
+    acceptedPlanCount: number;
+    completedPlanCount: number;
+    declinedPlanCount: number;
+    signals: Array<{
+      id: string;
+      severity: "low" | "medium" | "high";
+      label: string;
+      reason: string;
+      repairAction: string;
+    }>;
+    guidance: {
+      headline: string;
+      suggestions: string[];
+      nextAction: string;
+    };
+  }>;
   predictionAccuracy: {
     ratedDates: number;
     correct: number;
@@ -456,6 +489,75 @@ export default function InsightsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-700">Phase 2 relationship layer</h2>
+            <p className="text-xs text-stone-400 mt-1">
+              Early-relationship activity across invitations, plans, check-ins, and guidance.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { label: "Invites", value: data.analytics.relationship.invitationsCreated },
+              { label: "Accepted", value: data.analytics.relationship.invitationsAccepted },
+              { label: "Plans suggested", value: data.analytics.relationship.plansSuggested },
+              { label: "Plans accepted", value: data.analytics.relationship.plansAccepted },
+              { label: "Plans completed", value: data.analytics.relationship.plansCompleted },
+              { label: "Check-ins", value: data.analytics.relationship.checkInsSubmitted },
+              { label: "Guidance views", value: data.analytics.relationship.guidanceViews },
+              { label: "Signals", value: data.analytics.relationship.frictionSignals },
+              { label: "Safety disabled", value: data.analytics.relationship.safetyDisabled },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-stone-50 border border-stone-100 p-3">
+                <p className="text-xl font-bold text-stone-800">{item.value}</p>
+                <p className="text-[11px] text-stone-400 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {data.relationshipInsights.length > 0 ? (
+            <div className="space-y-3">
+              {data.relationshipInsights.map((summary) => (
+                <div key={summary.relationshipId} className="rounded-xl border border-stone-100 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-stone-800 capitalize">
+                        {summary.stage.replace(/_/g, " ")}
+                      </p>
+                      <p className="text-xs text-stone-400">
+                        {summary.checkInCount} check-ins, {summary.completedPlanCount} completed plans
+                      </p>
+                    </div>
+                    <span className="text-xs bg-stone-100 text-stone-600 rounded-full px-2.5 py-1">
+                      {summary.status}
+                    </span>
+                  </div>
+                  {summary.signals.length > 0 ? (
+                    <div className="space-y-2">
+                      {summary.signals.slice(0, 3).map((signal) => (
+                        <div key={signal.id} className="rounded-lg bg-amber-50 border border-amber-100 p-3">
+                          <p className="text-sm font-medium text-amber-800">{signal.label}</p>
+                          <p className="text-xs text-amber-700 mt-0.5">{signal.reason}</p>
+                          <p className="text-xs text-amber-700 mt-1">Next: {signal.repairAction}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-stone-500">
+                      No friction signals surfaced from explicit check-ins or plans.
+                    </p>
+                  )}
+                  <p className="text-xs text-stone-500">{summary.guidance.nextAction}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500">
+              No relationship spaces yet. Once a match enters relationship mode, this becomes the early-relationship health surface.
+            </p>
+          )}
         </section>
 
         <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">

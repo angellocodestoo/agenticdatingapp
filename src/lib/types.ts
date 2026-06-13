@@ -311,6 +311,25 @@ export type RelationshipGuidance = {
   nextAction: string;
 };
 
+export type RelationshipFrictionSignal = {
+  id: string;
+  severity: "low" | "medium" | "high";
+  label: string;
+  reason: string;
+  repairAction: string;
+};
+
+export type RelationshipInsightSummary = {
+  relationshipId: string;
+  checkInCount: number;
+  sharedCheckInCount: number;
+  acceptedPlanCount: number;
+  completedPlanCount: number;
+  declinedPlanCount: number;
+  signals: RelationshipFrictionSignal[];
+  guidance: RelationshipGuidance;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -360,7 +379,8 @@ export type AnalyticsEventName =
   | "relationship_plan_declined"
   | "relationship_plan_completed"
   | "relationship_check_in_submitted"
-  | "relationship_guidance_viewed";
+  | "relationship_guidance_viewed"
+  | "relationship_friction_signal_surfaced";
 
 export type AnalyticsEvent = {
   id: string;

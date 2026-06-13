@@ -12,7 +12,9 @@ import type {
   MatchLifecycleRecord,
   RelationshipCheckIn,
   RelationshipEligibility,
+  RelationshipFrictionSignal,
   RelationshipGuidance,
+  RelationshipInsightSummary,
   RelationshipMember,
   RelationshipPlan,
   RelationshipRecord,
@@ -987,6 +989,98 @@ export function getRelationshipGuidance(
   return { guidance, checkIns };
 }
 
+export function getRelationshipInsightSummary(
+  userId: string,
+  relationshipId: string
+): {
+  summary?: RelationshipInsightSummary;
+  error?: string;
+} {
+  const guidanceResult = getRelationshipGuidance(userId, relationshipId);
+  if (!guidanceResult.guidance || !guidanceResult.checkIns) {
+    return { error: guidanceResult.error ?? "Could not build relationship insights" };
+  }
+  const plansResult = getRelationshipPlans(userId, relationshipId);
+  if (!plansResult.plans) {
+    return { error: plansResult.error ?? "Could not load relationship plans" };
+  }
+  const checkIns = guidanceResult.checkIns;
+  const plans = plansResult.plans;
+  const stress = average(checkIns.map((item) => item.stress));
+  const closeness = average(checkIns.map((item) => item.closeness));
+  const acceptedPlanCount = plans.filter((plan) => plan.status === "accepted").length;
+  const completedPlanCount = plans.filter((plan) => plan.status === "completed").length;
+  const declinedPlanCount = plans.filter((plan) => plan.status === "declined").length;
+  const signals: RelationshipFrictionSignal[] = [];
+
+  if (checkIns.length === 0) {
+    signals.push({
+      id: "no_check_ins",
+      severity: "low",
+      label: "No shared rhythm yet",
+      reason: "Red String has no recent check-ins to learn from.",
+      repairAction: "Start with one private check-in, then choose what to share.",
+    });
+  }
+  if (stress !== null && stress >= 4) {
+    signals.push({
+      id: "high_stress",
+      severity: "medium",
+      label: "High stress trend",
+      reason: "Recent check-ins show stress running high.",
+      repairAction: "Ask for a lower-effort plan and name capacity before making requests.",
+    });
+  }
+  if (closeness !== null && closeness <= 2.5) {
+    signals.push({
+      id: "low_closeness",
+      severity: "medium",
+      label: "Lower closeness trend",
+      reason: "Recent check-ins suggest connection has felt less close.",
+      repairAction: "Schedule one short reconnection moment before logistics or problem solving.",
+    });
+  }
+  if (declinedPlanCount >= 2) {
+    signals.push({
+      id: "plan_mismatch",
+      severity: "medium",
+      label: "Plan mismatch",
+      reason: "Multiple shared plans were declined.",
+      repairAction: "Ask what kind of plan would feel easy this week and suggest only one option.",
+    });
+  }
+  if (plans.length > 0 && acceptedPlanCount === 0 && completedPlanCount === 0) {
+    signals.push({
+      id: "no_accepted_plans",
+      severity: "low",
+      label: "Plans need confirmation",
+      reason: "Plans exist, but none are accepted or completed yet.",
+      repairAction: "Pick the smallest plan and confirm a yes, no, or reschedule.",
+    });
+  }
+
+  for (const signal of signals) {
+    trackEvent(userId, "relationship_friction_signal_surfaced", {
+      relationshipId,
+      signalId: signal.id,
+      severity: signal.severity,
+    });
+  }
+
+  return {
+    summary: {
+      relationshipId,
+      checkInCount: checkIns.length,
+      sharedCheckInCount: checkIns.filter((item) => item.sharingLevel !== "private").length,
+      acceptedPlanCount,
+      completedPlanCount,
+      declinedPlanCount,
+      signals,
+      guidance: guidanceResult.guidance,
+    },
+  };
+}
+
 // Safety
 
 export function saveSafetyEvent(
@@ -1084,6 +1178,17 @@ export function getAnalyticsSummary(userId: string) {
       datesProposed: count("date_proposed"),
       datesAccepted: count("date_accepted"),
       feedbackSubmitted: count("feedback_submitted"),
+    },
+    relationship: {
+      invitationsCreated: count("relationship_invitation_created"),
+      invitationsAccepted: count("relationship_invitation_accepted"),
+      plansSuggested: count("relationship_plan_suggested"),
+      plansAccepted: count("relationship_plan_accepted"),
+      plansCompleted: count("relationship_plan_completed"),
+      checkInsSubmitted: count("relationship_check_in_submitted"),
+      guidanceViews: count("relationship_guidance_viewed"),
+      frictionSignals: count("relationship_friction_signal_surfaced"),
+      safetyDisabled: count("relationship_mode_safety_disabled"),
     },
     recent: events.slice(0, 12),
   };
