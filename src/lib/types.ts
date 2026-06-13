@@ -454,7 +454,8 @@ export type AnalyticsEventName =
   | "household_mode_paused"
   | "household_mode_resumed"
   | "household_mode_left"
-  | "household_mode_safety_disabled";
+  | "household_mode_safety_disabled"
+  | "household_profile_updated";
 
 export type AnalyticsEvent = {
   id: string;

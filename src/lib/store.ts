@@ -855,6 +855,70 @@ export function disableHouseholdsForSafety(
   return disabled;
 }
 
+function canUseHousehold(userId: string, householdId: string): {
+  household?: HouseholdRecord;
+  member?: HouseholdMember;
+  error?: string;
+} {
+  const household = getHousehold(householdId);
+  if (!household) return { error: "Household not found" };
+  const member = getHouseholdMember(householdId, userId);
+  if (!member) return { error: "Household membership not found" };
+  if (household.status === "safety_disabled" || member.status === "removed_for_safety") {
+    return { error: "Household mode is disabled for safety" };
+  }
+  if (member.status === "left" || member.status === "declined") {
+    return { error: "You are no longer active in this household space" };
+  }
+  return { household, member };
+}
+
+export function updateHouseholdProfile(
+  userId: string,
+  householdId: string,
+  patch: Partial<HouseholdRecord["profile"]> & {
+    stage?: HouseholdRecord["stage"];
+    sharingLevel?: HouseholdMember["sharingLevel"];
+    preferences?: Partial<HouseholdMember["preferences"]>;
+  }
+): {
+  household?: HouseholdRecord;
+  members?: HouseholdMember[];
+  error?: string;
+} {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household || !access.member) return { error: access.error };
+  const { stage, sharingLevel, preferences, ...profilePatch } = patch;
+  const now = Date.now();
+  const household = saveHousehold({
+    ...access.household,
+    stage: stage ?? access.household.stage,
+    profile: {
+      ...access.household.profile,
+      ...profilePatch,
+    },
+    updatedAt: now,
+  });
+  const member = saveHouseholdMember({
+    ...access.member,
+    sharingLevel: sharingLevel ?? access.member.sharingLevel,
+    preferences: {
+      ...access.member.preferences,
+      ...(preferences ?? {}),
+    },
+    updatedAt: now,
+  });
+  const members = getHouseholdMembers(householdId).map((existing) =>
+    existing.id === member.id ? member : existing
+  );
+  trackEvent(userId, "household_profile_updated", {
+    householdId,
+    stage: household.stage,
+    sharingLevel: member.sharingLevel,
+  });
+  return { household, members };
+}
+
 function relationshipStatusFromMembers(
   members: RelationshipMember[]
 ): RelationshipRecord["status"] {
