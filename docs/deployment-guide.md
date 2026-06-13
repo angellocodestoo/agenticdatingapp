@@ -52,6 +52,7 @@ Set `CAPACITOR_SERVER_URL` to the deployed HTTPS origin before syncing release b
 
 - Liveness/readiness endpoint: `/api/health`
 - Admin launch checklist: `/admin/launch`
+- Admin provider checklist: `/admin/providers`
 - Admin safety queue: `/admin/safety`
 
 `/api/health` returns HTTP 200 when the app and database are reachable. The JSON body still reports missing production configuration.
@@ -75,9 +76,10 @@ Keep the `data` directory on persistent storage. SQLite is acceptable for a sing
 5. Run `npm audit --audit-level=moderate`.
 6. Visit `/api/health`.
 7. Visit `/admin/launch`.
-8. Confirm privacy export works.
-9. Confirm account deletion works on a test user.
-10. Confirm safety reports appear in `/admin/safety`.
+8. Visit `/admin/providers`.
+9. Confirm privacy export works.
+10. Confirm account deletion works on a test user.
+11. Confirm safety reports appear in `/admin/safety`.
 
 ## Rollback
 

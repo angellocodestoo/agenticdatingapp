@@ -55,7 +55,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | 19 | `/safety` | Community safety standards |
 | 20 | `/data-safety` | Store data-safety disclosure summary |
 | 21 | `/admin/launch` | Review launch readiness with an admin token |
-| 22 | `/admin/safety` | Review safety reports with an admin token |
+| 22 | `/admin/providers` | Review production provider credentials with an admin token |
+| 23 | `/admin/safety` | Review safety reports with an admin token |
 
 ## Phase 1 Capabilities
 
@@ -204,6 +205,7 @@ This makes production swaps for calendar availability, places, and phone masking
 - Privacy export and account deletion from `/settings`
 - Public support, safety, and data-safety routes for store listings
 - Launch readiness checklist at `/admin/launch`
+- Provider activation checklist at `/admin/providers`
 - Admin safety review API and `/admin/safety` screen
 - Notification provider abstraction with mock defaults
 - Configurable SQLite storage path
@@ -252,6 +254,7 @@ flowchart LR
 | Privacy controls | `src/app/api/privacy/route.ts`, `src/app/settings/page.tsx` |
 | Store support routes | `src/app/support/page.tsx`, `src/app/safety/page.tsx`, `src/app/data-safety/page.tsx` |
 | Launch readiness | `src/app/api/admin/launch/route.ts`, `src/app/admin/launch/page.tsx`, `src/lib/launchReadiness.ts` |
+| Provider readiness | `src/app/api/admin/providers/route.ts`, `src/app/admin/providers/page.tsx`, `src/lib/providerReadiness.ts` |
 | Admin safety review | `src/app/api/admin/safety/route.ts`, `src/app/admin/safety/page.tsx` |
 
 ## Configuration
@@ -321,4 +324,5 @@ Phase 4 expands Red String into the decades layer for chapters, anniversaries, r
 - [App Store readiness](docs/app-store-readiness.md)
 - [Native wrapper decision](docs/native-wrapper-decision.md)
 - [Native build guide](docs/native-build-guide.md)
+- [Provider activation guide](docs/provider-activation.md)
 - [Store listing metadata](docs/store-listing.json)

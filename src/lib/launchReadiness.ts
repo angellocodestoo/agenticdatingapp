@@ -1,5 +1,6 @@
 import { getRuntimeConfigReport } from "@/lib/config";
 import { getNotificationProviderStatus } from "@/lib/notifications/providers";
+import { getProviderReadinessSummary } from "@/lib/providerReadiness";
 
 export type LaunchReadinessItem = {
   id: string;
@@ -34,6 +35,8 @@ const shippedArtifacts = new Set([
   "docs/deployment-guide.md",
   "docs/app-store-readiness.md",
   "docs/store-listing.json",
+  "docs/provider-activation.md",
+  "src/app/admin/providers/page.tsx",
 ]);
 
 function exists(relativePath: string): boolean {
@@ -62,6 +65,7 @@ export function getLaunchReadinessReport(): {
   const config = getRuntimeConfigReport();
   const configByKey = new Map(config.map((entry) => [entry.key, entry]));
   const notifications = getNotificationProviderStatus();
+  const providerSummary = getProviderReadinessSummary();
 
   const sections: LaunchReadinessSection[] = [
     {
@@ -179,6 +183,14 @@ export function getLaunchReadinessReport(): {
           "Calendar provider",
           configByKey.get("CALENDAR_PROVIDER")?.status === "configured" ? "ready" : "mock",
           "Availability uses deterministic mock windows until calendar OAuth is set."
+        ),
+        item(
+          "provider_activation",
+          "Provider activation plan",
+          exists("docs/provider-activation.md") && exists("src/app/admin/providers/page.tsx")
+            ? "manual_review"
+            : "needs_config",
+          `${providerSummary.configured} configured, ${providerSummary.mock} mocked, ${providerSummary.missing} missing. Review /admin/providers before production launch.`
         ),
       ],
     },
