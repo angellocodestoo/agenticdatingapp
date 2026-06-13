@@ -2,7 +2,7 @@
 
 ## Recommendation
 
-Use a PWA-first launch for initial production validation, then ship a Capacitor wrapper for iOS and Android once provider credentials, privacy review, and safety operations are stable.
+Use a PWA-first launch for initial production validation, with the Capacitor wrapper already scaffolded for iOS and Android. Ship the native shells once provider credentials, privacy review, signing, and safety operations are stable.
 
 ## Why PWA First
 
@@ -40,10 +40,10 @@ Move from PWA to Capacitor when:
 
 ## First Capacitor Tasks
 
-1. Add Capacitor packages.
-2. Configure app id, name, icon, and splash screen.
-3. Point native shell at the deployed production origin.
-4. Add iOS and Android projects.
+1. Add Capacitor packages. Done.
+2. Configure app id, name, icon, and release URL. Done.
+3. Add iOS and Android projects. Done.
+4. Point native shell at the deployed production origin with `CAPACITOR_SERVER_URL`.
 5. Validate login/session persistence inside the shell.
 6. Validate privacy export/delete from the shell.
 7. Capture store screenshots from the native builds.

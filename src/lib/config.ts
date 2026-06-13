@@ -36,6 +36,12 @@ export function getRuntimeConfigReport(): RuntimeCheck[] {
       detail: "Required before using admin safety review routes in production.",
     },
     {
+      key: "CAPACITOR_SERVER_URL",
+      label: "Native shell URL",
+      status: has("CAPACITOR_SERVER_URL") ? "configured" : "missing",
+      detail: "Required before syncing release iOS/Android shells to the deployed production origin.",
+    },
+    {
       key: "ANTHROPIC_API_KEY",
       label: "LLM engine",
       status: has("ANTHROPIC_API_KEY") ? "configured" : "mock",

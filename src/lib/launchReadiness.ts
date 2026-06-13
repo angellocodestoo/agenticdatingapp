@@ -27,6 +27,10 @@ const shippedArtifacts = new Set([
   "src/app/data-safety/page.tsx",
   "src/app/api/privacy/route.ts",
   "docs/native-wrapper-decision.md",
+  "docs/native-build-guide.md",
+  "capacitor.config.ts",
+  "android/app/build.gradle",
+  "ios/App/App.xcodeproj/project.pbxproj",
   "docs/deployment-guide.md",
   "docs/app-store-readiness.md",
   "docs/store-listing.json",
@@ -187,6 +191,30 @@ export function getLaunchReadinessReport(): {
           "Native wrapper decision",
           exists("docs/native-wrapper-decision.md") ? "manual_review" : "needs_config",
           "Decision doc should be reviewed before creating the iOS/Android shell."
+        ),
+        item(
+          "capacitor_config",
+          "Capacitor config",
+          exists("capacitor.config.ts") ? "ready" : "needs_config",
+          "Native shell config exists with release URL controlled by CAPACITOR_SERVER_URL."
+        ),
+        item(
+          "android_shell",
+          "Android shell",
+          exists("android/app/build.gradle") ? "manual_review" : "needs_config",
+          "Android project is scaffolded; signing and Play Console setup remain manual."
+        ),
+        item(
+          "ios_shell",
+          "iOS shell",
+          exists("ios/App/App.xcodeproj/project.pbxproj") ? "manual_review" : "needs_config",
+          "iOS project is scaffolded; Xcode signing and App Store Connect setup remain manual."
+        ),
+        item(
+          "native_url",
+          "Native production URL",
+          configByKey.get("CAPACITOR_SERVER_URL")?.status === "configured" ? "ready" : "needs_config",
+          "Set CAPACITOR_SERVER_URL to the deployed HTTPS origin before release sync."
         ),
         item(
           "deployment",

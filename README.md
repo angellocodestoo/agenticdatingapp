@@ -264,6 +264,7 @@ ANTHROPIC_MODEL=claude-sonnet-4-6
 APP_PUBLIC_ORIGIN=http://localhost:3000
 ADMIN_TOKEN=change-me
 REDSTRING_DB_FILE=redstring.db
+CAPACITOR_SERVER_URL=https://your-production-origin.example
 SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
 SPOTIFY_REDIRECT_URI=http://localhost:3000/api/connect/spotify/callback
@@ -283,6 +284,9 @@ npm run build
 npm run start
 npm run lint
 npm audit --audit-level=moderate
+npm run native:sync
+npm run native:open:android
+npm run native:open:ios
 ```
 
 ## Production Notes
@@ -316,4 +320,5 @@ Phase 4 expands Red String into the decades layer for chapters, anniversaries, r
 - [Deployment guide](docs/deployment-guide.md)
 - [App Store readiness](docs/app-store-readiness.md)
 - [Native wrapper decision](docs/native-wrapper-decision.md)
+- [Native build guide](docs/native-build-guide.md)
 - [Store listing metadata](docs/store-listing.json)

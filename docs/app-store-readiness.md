@@ -14,6 +14,8 @@ Ship the web/PWA product first, then wrap the same production URL in a native sh
 - Data export and account deletion exist.
 - Admin safety review exists.
 - Launch readiness dashboard exists at `/admin/launch`.
+- Capacitor config exists.
+- Android and iOS native projects are scaffolded.
 
 ## Manual Review Before Submission
 
@@ -23,6 +25,8 @@ Ship the web/PWA product first, then wrap the same production URL in a native sh
 - Google Play short description, full description, data safety form, and content rating.
 - Safety escalation policy for reports.
 - Decision on whether launch uses PWA distribution, Capacitor wrapper, or dedicated native apps.
+- Android signing and Play Console release setup.
+- iOS signing and App Store Connect setup on a Mac with Xcode.
 
 ## Provider Decisions
 

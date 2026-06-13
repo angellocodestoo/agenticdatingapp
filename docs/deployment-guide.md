@@ -9,6 +9,7 @@ The app is a Next.js application with local SQLite persistence. It can be deploy
 - `APP_PUBLIC_ORIGIN`
 - `ADMIN_TOKEN`
 - `REDSTRING_DB_FILE` if not using `data/redstring.db`
+- `CAPACITOR_SERVER_URL` before syncing native release builds
 
 ## Recommended Production Variables
 
@@ -36,6 +37,16 @@ npm run build
 npm audit --audit-level=moderate
 npm run start
 ```
+
+## Native Wrapper Commands
+
+```bash
+npm run native:sync
+npm run native:open:android
+npm run native:open:ios
+```
+
+Set `CAPACITOR_SERVER_URL` to the deployed HTTPS origin before syncing release builds.
 
 ## Health Checks
 
