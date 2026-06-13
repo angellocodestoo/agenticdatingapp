@@ -732,6 +732,129 @@ export function createHouseholdInvitation(
   return { household, members };
 }
 
+function householdStatusFromMembers(
+  members: HouseholdMember[]
+): HouseholdRecord["status"] {
+  if (members.some((member) => member.status === "removed_for_safety")) {
+    return "safety_disabled";
+  }
+  if (members.some((member) => member.status === "left" || member.status === "declined")) {
+    return "ended";
+  }
+  if (members.some((member) => member.status === "paused")) {
+    return "paused";
+  }
+  if (members.length >= 2 && members.every((member) => member.status === "accepted")) {
+    return "active";
+  }
+  return "pending";
+}
+
+export function respondToHouseholdMembership(
+  userId: string,
+  householdId: string,
+  action: "accept" | "decline" | "pause" | "resume" | "leave"
+): {
+  household?: HouseholdRecord;
+  members?: HouseholdMember[];
+  error?: string;
+} {
+  const household = getHousehold(householdId);
+  if (!household) return { error: "Household not found" };
+  const member = getHouseholdMember(householdId, userId);
+  if (!member) return { error: "Household membership not found" };
+  if (household.status === "safety_disabled" || member.status === "removed_for_safety") {
+    return { error: "Household mode is disabled for safety" };
+  }
+  if (member.status === "left") return { error: "You already left this household space" };
+
+  const nextStatusByAction = {
+    accept: "accepted",
+    decline: "declined",
+    pause: "paused",
+    resume: "accepted",
+    leave: "left",
+  } as const;
+  if (action === "accept" && member.status !== "invited" && member.status !== "paused") {
+    return { error: "Only invited or paused members can accept" };
+  }
+  if (action === "resume" && member.status !== "paused") {
+    return { error: "Only paused members can resume" };
+  }
+  if (action === "decline" && member.status !== "invited") {
+    return { error: "Only invited members can decline" };
+  }
+  if (action === "pause" && member.status !== "accepted") {
+    return { error: "Only accepted members can pause" };
+  }
+
+  const now = Date.now();
+  const updatedMember = saveHouseholdMember({
+    ...member,
+    status: nextStatusByAction[action],
+    updatedAt: now,
+  });
+  const members = getHouseholdMembers(householdId).map((existing) =>
+    existing.id === updatedMember.id ? updatedMember : existing
+  );
+  const updatedHousehold = saveHousehold({
+    ...household,
+    status: householdStatusFromMembers(members),
+    updatedAt: now,
+  });
+  const eventByAction = {
+    accept: "household_invitation_accepted",
+    decline: "household_invitation_declined",
+    pause: "household_mode_paused",
+    resume: "household_mode_resumed",
+    leave: "household_mode_left",
+  } as const;
+  trackEvent(userId, eventByAction[action], {
+    householdId,
+    sourceRelationshipId: household.sourceRelationshipId,
+  });
+  return {
+    household: updatedHousehold,
+    members,
+  };
+}
+
+export function disableHouseholdsForSafety(
+  userId: string,
+  candidateId: string
+): HouseholdRecord[] {
+  const candidate = getCandidateProfile(candidateId);
+  const blockedUserId = candidate?.ownerUserId;
+  if (!blockedUserId) return [];
+  const disabled: HouseholdRecord[] = [];
+  for (const { household, members } of getHouseholdsForUser(userId)) {
+    if (!household.partnerUserIds.includes(blockedUserId)) continue;
+    const now = Date.now();
+    for (const member of members) {
+      saveHouseholdMember({
+        ...member,
+        status:
+          member.userId === userId || member.userId === blockedUserId
+            ? "removed_for_safety"
+            : member.status,
+        updatedAt: now,
+      });
+    }
+    const updated = saveHousehold({
+      ...household,
+      status: "safety_disabled",
+      updatedAt: now,
+    });
+    trackEvent(userId, "household_mode_safety_disabled", {
+      householdId: household.id,
+      candidateId,
+      blockedUserId,
+    });
+    disabled.push(updated);
+  }
+  return disabled;
+}
+
 function relationshipStatusFromMembers(
   members: RelationshipMember[]
 ): RelationshipRecord["status"] {
@@ -1314,6 +1437,7 @@ export function saveSafetyEvent(
     );
   if (safetyEvent.action === "block") {
     disableRelationshipsForSafety(userId, safetyEvent.candidateId);
+    disableHouseholdsForSafety(userId, safetyEvent.candidateId);
   }
   return safetyEvent;
 }

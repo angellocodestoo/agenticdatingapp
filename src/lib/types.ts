@@ -448,7 +448,13 @@ export type AnalyticsEventName =
   | "relationship_check_in_submitted"
   | "relationship_guidance_viewed"
   | "relationship_friction_signal_surfaced"
-  | "household_invitation_created";
+  | "household_invitation_created"
+  | "household_invitation_accepted"
+  | "household_invitation_declined"
+  | "household_mode_paused"
+  | "household_mode_resumed"
+  | "household_mode_left"
+  | "household_mode_safety_disabled";
 
 export type AnalyticsEvent = {
   id: string;
