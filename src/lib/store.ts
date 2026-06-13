@@ -641,6 +641,94 @@ export function disableRelationshipsForSafety(
   return disabled;
 }
 
+export function updateRelationshipProfile(
+  userId: string,
+  relationshipId: string,
+  patch: Partial<RelationshipRecord["profile"]> & {
+    stage?: RelationshipRecord["stage"];
+  }
+): {
+  relationship?: RelationshipRecord;
+  members?: RelationshipMember[];
+  error?: string;
+} {
+  const relationship = getRelationship(relationshipId);
+  if (!relationship) return { error: "Relationship not found" };
+  const member = getRelationshipMember(relationshipId, userId);
+  if (!member) return { error: "Relationship membership not found" };
+  if (relationship.status === "safety_disabled" || member.status === "removed_for_safety") {
+    return { error: "Relationship mode is disabled for safety" };
+  }
+  if (member.status === "left" || member.status === "declined") {
+    return { error: "You are no longer active in this relationship space" };
+  }
+
+  const { stage, ...profilePatch } = patch;
+  const updated = saveRelationship({
+    ...relationship,
+    stage: stage ?? relationship.stage,
+    profile: {
+      ...relationship.profile,
+      ...profilePatch,
+    },
+    updatedAt: Date.now(),
+  });
+  trackEvent(userId, "relationship_preferences_updated", {
+    relationshipId,
+    scope: "shared_profile",
+  });
+  return {
+    relationship: updated,
+    members: getRelationshipMembers(relationshipId),
+  };
+}
+
+export function updateRelationshipMemberPreferences(
+  userId: string,
+  relationshipId: string,
+  patch: Partial<RelationshipMember["preferences"]> & {
+    sharingLevel?: RelationshipMember["sharingLevel"];
+  }
+): {
+  relationship?: RelationshipRecord;
+  members?: RelationshipMember[];
+  error?: string;
+} {
+  const relationship = getRelationship(relationshipId);
+  if (!relationship) return { error: "Relationship not found" };
+  const member = getRelationshipMember(relationshipId, userId);
+  if (!member) return { error: "Relationship membership not found" };
+  if (relationship.status === "safety_disabled" || member.status === "removed_for_safety") {
+    return { error: "Relationship mode is disabled for safety" };
+  }
+  if (member.status === "left" || member.status === "declined") {
+    return { error: "You are no longer active in this relationship space" };
+  }
+
+  const { sharingLevel, ...preferencePatch } = patch;
+  const updatedMember = saveRelationshipMember({
+    ...member,
+    sharingLevel: sharingLevel ?? member.sharingLevel,
+    preferences: {
+      ...member.preferences,
+      ...preferencePatch,
+    },
+    updatedAt: Date.now(),
+  });
+  const members = getRelationshipMembers(relationshipId).map((existing) =>
+    existing.id === updatedMember.id ? updatedMember : existing
+  );
+  trackEvent(userId, "relationship_preferences_updated", {
+    relationshipId,
+    scope: "member_preferences",
+    sharingLevel: updatedMember.sharingLevel,
+  });
+  return {
+    relationship,
+    members,
+  };
+}
+
 // Safety
 
 export function saveSafetyEvent(

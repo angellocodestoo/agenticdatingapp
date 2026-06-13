@@ -187,6 +187,12 @@ export default function RelationshipPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <Link
+                      href="/relationship/settings"
+                      className="rounded-full bg-rose-50 text-rose-600 text-sm font-medium px-4 py-2 hover:bg-rose-100"
+                    >
+                      Settings
+                    </Link>
                     {relationship.status === "pending" && myMember?.status === "invited" && (
                       <>
                         <button

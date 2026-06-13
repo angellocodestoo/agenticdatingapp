@@ -307,7 +307,8 @@ export type AnalyticsEventName =
   | "relationship_mode_paused"
   | "relationship_mode_resumed"
   | "relationship_mode_left"
-  | "relationship_mode_safety_disabled";
+  | "relationship_mode_safety_disabled"
+  | "relationship_preferences_updated";
 
 export type AnalyticsEvent = {
   id: string;
