@@ -12,6 +12,7 @@ import type {
   MatchLifecycleRecord,
   RelationshipEligibility,
   RelationshipMember,
+  RelationshipPlan,
   RelationshipRecord,
   SafetyEvent,
   UserProfileState,
@@ -727,6 +728,141 @@ export function updateRelationshipMemberPreferences(
     relationship,
     members,
   };
+}
+
+function canUseRelationship(userId: string, relationshipId: string): {
+  relationship?: RelationshipRecord;
+  member?: RelationshipMember;
+  error?: string;
+} {
+  const relationship = getRelationship(relationshipId);
+  if (!relationship) return { error: "Relationship not found" };
+  const member = getRelationshipMember(relationshipId, userId);
+  if (!member) return { error: "Relationship membership not found" };
+  if (relationship.status === "safety_disabled" || member.status === "removed_for_safety") {
+    return { error: "Relationship mode is disabled for safety" };
+  }
+  if (member.status === "left" || member.status === "declined") {
+    return { error: "You are no longer active in this relationship space" };
+  }
+  return { relationship, member };
+}
+
+export function saveRelationshipPlan(plan: RelationshipPlan): RelationshipPlan {
+  getDb()
+    .prepare(
+      `INSERT INTO relationship_plans
+       (id, relationship_id, created_by_user_id, type, status, scheduled_for, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         status = excluded.status,
+         scheduled_for = excluded.scheduled_for,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      plan.id,
+      plan.relationshipId,
+      plan.createdByUserId,
+      plan.type,
+      plan.status,
+      plan.scheduledFor ?? null,
+      plan.createdAt,
+      plan.updatedAt,
+      JSON.stringify(plan)
+    );
+  return plan;
+}
+
+export function getRelationshipPlans(
+  userId: string,
+  relationshipId: string
+): {
+  plans?: RelationshipPlan[];
+  error?: string;
+} {
+  const access = canUseRelationship(userId, relationshipId);
+  if (!access.relationship) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM relationship_plans
+       WHERE relationship_id = ?
+       ORDER BY COALESCE(scheduled_for, updated_at) ASC`
+    )
+    .all(relationshipId) as Array<{ json: string }>;
+  return { plans: rows.map((r) => JSON.parse(r.json) as RelationshipPlan) };
+}
+
+export function getRelationshipPlan(
+  userId: string,
+  relationshipId: string,
+  planId: string
+): RelationshipPlan | null {
+  const access = canUseRelationship(userId, relationshipId);
+  if (!access.relationship) return null;
+  const row = getDb()
+    .prepare("SELECT json FROM relationship_plans WHERE id = ? AND relationship_id = ?")
+    .get(planId, relationshipId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as RelationshipPlan) : null;
+}
+
+export function createRelationshipPlan(
+  userId: string,
+  relationshipId: string,
+  plan: Omit<RelationshipPlan, "id" | "relationshipId" | "createdByUserId" | "createdAt" | "updatedAt">
+): {
+  plan?: RelationshipPlan;
+  error?: string;
+} {
+  const access = canUseRelationship(userId, relationshipId);
+  if (!access.relationship) return { error: access.error };
+  const now = Date.now();
+  const saved = saveRelationshipPlan({
+    ...plan,
+    id: uid("rplan"),
+    relationshipId,
+    createdByUserId: userId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  trackEvent(userId, "relationship_plan_suggested", {
+    relationshipId,
+    planId: saved.id,
+    type: saved.type,
+  });
+  return { plan: saved };
+}
+
+export function updateRelationshipPlanStatus(
+  userId: string,
+  relationshipId: string,
+  planId: string,
+  patch: Pick<Partial<RelationshipPlan>, "status" | "scheduledFor" | "notes">
+): {
+  plan?: RelationshipPlan;
+  error?: string;
+} {
+  const current = getRelationshipPlan(userId, relationshipId, planId);
+  if (!current) return { error: "Plan not found" };
+  const updated = saveRelationshipPlan({
+    ...current,
+    ...(patch.status ? { status: patch.status } : {}),
+    ...(patch.scheduledFor ? { scheduledFor: patch.scheduledFor } : {}),
+    ...(patch.notes ? { notes: patch.notes } : {}),
+    updatedAt: Date.now(),
+  });
+  const eventByStatus = {
+    accepted: "relationship_plan_accepted",
+    declined: "relationship_plan_declined",
+    completed: "relationship_plan_completed",
+    suggested: "relationship_plan_suggested",
+  } as const;
+  trackEvent(userId, eventByStatus[updated.status], {
+    relationshipId,
+    planId,
+    type: updated.type,
+  });
+  return { plan: updated };
 }
 
 // Safety

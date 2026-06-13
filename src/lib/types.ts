@@ -265,6 +265,31 @@ export type RelationshipMember = {
   };
 };
 
+export type RelationshipPlanType = "date_night" | "check_in" | "quality_time" | "custom";
+
+export type RelationshipPlanStatus =
+  | "suggested"
+  | "accepted"
+  | "declined"
+  | "completed";
+
+export type RelationshipPlan = {
+  id: string;
+  relationshipId: string;
+  createdByUserId: string;
+  type: RelationshipPlanType;
+  status: RelationshipPlanStatus;
+  scheduledFor?: string;
+  title: string;
+  location?: {
+    venueName?: string;
+    addressLine?: string;
+  };
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -308,7 +333,11 @@ export type AnalyticsEventName =
   | "relationship_mode_resumed"
   | "relationship_mode_left"
   | "relationship_mode_safety_disabled"
-  | "relationship_preferences_updated";
+  | "relationship_preferences_updated"
+  | "relationship_plan_suggested"
+  | "relationship_plan_accepted"
+  | "relationship_plan_declined"
+  | "relationship_plan_completed";
 
 export type AnalyticsEvent = {
   id: string;

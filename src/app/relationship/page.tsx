@@ -153,7 +153,7 @@ export default function RelationshipPage() {
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
                       <p className="text-xs text-stone-400">Next plan</p>
                       <p className="text-sm font-medium text-stone-700 mt-1">
-                        Planner arrives in Section 5
+                        Suggest and confirm quality time
                       </p>
                     </div>
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
@@ -187,6 +187,12 @@ export default function RelationshipPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <Link
+                      href="/relationship/planner"
+                      className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
+                    >
+                      Planner
+                    </Link>
                     <Link
                       href="/relationship/settings"
                       className="rounded-full bg-rose-50 text-rose-600 text-sm font-medium px-4 py-2 hover:bg-rose-100"
