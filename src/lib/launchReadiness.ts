@@ -22,10 +22,14 @@ const shippedArtifacts = new Set([
   "docs/screenshots/01-landing.png",
   "src/app/privacy/page.tsx",
   "src/app/terms/page.tsx",
+  "src/app/support/page.tsx",
+  "src/app/safety/page.tsx",
+  "src/app/data-safety/page.tsx",
   "src/app/api/privacy/route.ts",
   "docs/native-wrapper-decision.md",
   "docs/deployment-guide.md",
   "docs/app-store-readiness.md",
+  "docs/store-listing.json",
 ]);
 
 function exists(relativePath: string): boolean {
@@ -82,6 +86,12 @@ export function getLaunchReadinessReport(): {
           exists("docs/screenshots/01-landing.png") ? "manual_review" : "needs_config",
           "Existing product screenshots can seed listings, but final iOS/Android store frames still need manual capture."
         ),
+        item(
+          "store_listing",
+          "Store listing draft",
+          exists("docs/store-listing.json") ? "manual_review" : "needs_config",
+          "Listing metadata draft exists and should be finalized for each store."
+        ),
       ],
     },
     {
@@ -105,6 +115,24 @@ export function getLaunchReadinessReport(): {
           "Export and deletion",
           exists("src/app/api/privacy/route.ts") ? "ready" : "needs_config",
           "Users can export data and delete accounts from Settings."
+        ),
+        item(
+          "support",
+          "Support URL",
+          exists("src/app/support/page.tsx") ? "ready" : "needs_config",
+          "Public support route exists for store listings."
+        ),
+        item(
+          "safety_standards",
+          "Safety standards",
+          exists("src/app/safety/page.tsx") ? "manual_review" : "needs_config",
+          "Public safety standards exist; review escalation process before launch."
+        ),
+        item(
+          "data_safety",
+          "Data safety disclosure",
+          exists("src/app/data-safety/page.tsx") ? "manual_review" : "needs_config",
+          "Store disclosure summary exists; update when production providers are enabled."
         ),
         item(
           "admin_safety",

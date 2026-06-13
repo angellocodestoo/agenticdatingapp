@@ -1,0 +1,39 @@
+{
+  "appName": "Red String",
+  "subtitle": "Fate, handled.",
+  "category": "Lifestyle",
+  "secondaryCategory": "Social Networking",
+  "ageRatingTarget": "17+",
+  "shortDescription": "A relationship copilot that starts with better dates and grows into shared-life and legacy support.",
+  "fullDescription": "Red String is an agentic relationship product for people who want fewer, better first dates and a calmer way to build what comes after. Your AI agent builds a relationship persona, screens compatibility, proposes thoughtful date logistics, learns from feedback, and can graduate a mutual match into relationship, household, and legacy modes.",
+  "keywords": [
+    "dating",
+    "relationship",
+    "couples",
+    "AI agent",
+    "date planning",
+    "household",
+    "marriage",
+    "legacy"
+  ],
+  "urls": {
+    "support": "/support",
+    "privacy": "/privacy",
+    "terms": "/terms",
+    "safety": "/safety",
+    "dataSafety": "/data-safety"
+  },
+  "reviewNotes": [
+    "The app includes reporting and blocking for match safety.",
+    "The app includes data export and account deletion in Settings.",
+    "The app is not an emergency service, therapy provider, legal advisor, medical advisor, or financial advisor.",
+    "Provider disclosures must be updated when production integrations are enabled."
+  ],
+  "manualBeforeSubmission": [
+    "Replace placeholder legal language after counsel review.",
+    "Capture final native screenshots.",
+    "Confirm production support contact.",
+    "Complete Apple privacy nutrition labels and Google Play data safety form from the deployed build.",
+    "Confirm provider credentials and update disclosures."
+  ]
+}

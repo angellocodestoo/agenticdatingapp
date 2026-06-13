@@ -10,6 +10,7 @@ Ship the web/PWA product first, then wrap the same production URL in a native sh
 - PWA manifest exists.
 - App icons exist at 192, 512, and 1024 pixels.
 - Privacy and Terms routes exist.
+- Support, Safety, and Data Safety routes exist.
 - Data export and account deletion exist.
 - Admin safety review exists.
 - Launch readiness dashboard exists at `/admin/launch`.
@@ -38,9 +39,11 @@ Ship the web/PWA product first, then wrap the same production URL in a native sh
 - Category: Lifestyle
 - Secondary category: Social Networking or Productivity
 - Age rating target: 17+ until moderation, reporting, and dating-safety policy are fully reviewed.
-- Support URL: public production origin plus `/settings` or a dedicated support route.
+- Support URL: public production origin plus `/support`
 - Privacy URL: public production origin plus `/privacy`
 - Terms URL: public production origin plus `/terms`
+- Safety URL: public production origin plus `/safety`
+- Data safety URL: public production origin plus `/data-safety`
 
 ## Final Gate
 
