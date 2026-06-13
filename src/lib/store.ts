@@ -10,6 +10,8 @@ import type {
   DateFeedback,
   DateProposal,
   HouseholdEligibility,
+  HouseholdDecision,
+  HouseholdGoal,
   HouseholdMember,
   HouseholdRecord,
   HouseholdResponsibility,
@@ -1113,6 +1115,184 @@ export function updateHouseholdRitual(
     });
   }
   return { ritual };
+}
+
+export function saveHouseholdDecision(decision: HouseholdDecision): HouseholdDecision {
+  getDb()
+    .prepare(
+      `INSERT INTO household_decisions
+       (id, household_id, created_by_user_id, domain, status, deadline_at, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         domain = excluded.domain,
+         status = excluded.status,
+         deadline_at = excluded.deadline_at,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      decision.id,
+      decision.householdId,
+      decision.createdByUserId,
+      decision.domain,
+      decision.status,
+      decision.deadlineAt ?? null,
+      decision.createdAt,
+      decision.updatedAt,
+      JSON.stringify(decision)
+    );
+  return decision;
+}
+
+export function getHouseholdDecisions(
+  userId: string,
+  householdId: string
+): { decisions?: HouseholdDecision[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM household_decisions
+       WHERE household_id = ?
+       ORDER BY COALESCE(deadline_at, updated_at) ASC`
+    )
+    .all(householdId) as Array<{ json: string }>;
+  return { decisions: rows.map((r) => JSON.parse(r.json) as HouseholdDecision) };
+}
+
+export function createHouseholdDecision(
+  userId: string,
+  householdId: string,
+  input: Omit<HouseholdDecision, "id" | "householdId" | "createdByUserId" | "createdAt" | "updatedAt">
+): { decision?: HouseholdDecision; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const now = Date.now();
+  const decision = saveHouseholdDecision({
+    ...input,
+    id: uid("hdec"),
+    householdId,
+    createdByUserId: userId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  trackEvent(userId, "household_decision_created", { householdId, decisionId: decision.id });
+  return { decision };
+}
+
+export function updateHouseholdDecision(
+  userId: string,
+  householdId: string,
+  decisionId: string,
+  patch: Partial<HouseholdDecision>
+): { decision?: HouseholdDecision; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const row = getDb()
+    .prepare("SELECT json FROM household_decisions WHERE id = ? AND household_id = ?")
+    .get(decisionId, householdId) as { json: string } | undefined;
+  if (!row) return { error: "Decision not found" };
+  const current = JSON.parse(row.json) as HouseholdDecision;
+  const decision = saveHouseholdDecision({
+    ...current,
+    ...patch,
+    id: current.id,
+    householdId,
+    updatedAt: Date.now(),
+  });
+  if (decision.status === "resolved") {
+    trackEvent(userId, "household_decision_resolved", { householdId, decisionId });
+  }
+  return { decision };
+}
+
+export function saveHouseholdGoal(goal: HouseholdGoal): HouseholdGoal {
+  getDb()
+    .prepare(
+      `INSERT INTO household_goals
+       (id, household_id, created_by_user_id, category, status, target_at, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         category = excluded.category,
+         status = excluded.status,
+         target_at = excluded.target_at,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      goal.id,
+      goal.householdId,
+      goal.createdByUserId,
+      goal.category,
+      goal.status,
+      goal.targetAt ?? null,
+      goal.createdAt,
+      goal.updatedAt,
+      JSON.stringify(goal)
+    );
+  return goal;
+}
+
+export function getHouseholdGoals(
+  userId: string,
+  householdId: string
+): { goals?: HouseholdGoal[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM household_goals
+       WHERE household_id = ?
+       ORDER BY COALESCE(target_at, updated_at) ASC`
+    )
+    .all(householdId) as Array<{ json: string }>;
+  return { goals: rows.map((r) => JSON.parse(r.json) as HouseholdGoal) };
+}
+
+export function createHouseholdGoal(
+  userId: string,
+  householdId: string,
+  input: Omit<HouseholdGoal, "id" | "householdId" | "createdByUserId" | "createdAt" | "updatedAt">
+): { goal?: HouseholdGoal; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const now = Date.now();
+  const goal = saveHouseholdGoal({
+    ...input,
+    id: uid("hgoal"),
+    householdId,
+    createdByUserId: userId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  trackEvent(userId, "household_goal_created", { householdId, goalId: goal.id });
+  return { goal };
+}
+
+export function updateHouseholdGoal(
+  userId: string,
+  householdId: string,
+  goalId: string,
+  patch: Partial<HouseholdGoal>
+): { goal?: HouseholdGoal; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const row = getDb()
+    .prepare("SELECT json FROM household_goals WHERE id = ? AND household_id = ?")
+    .get(goalId, householdId) as { json: string } | undefined;
+  if (!row) return { error: "Goal not found" };
+  const current = JSON.parse(row.json) as HouseholdGoal;
+  const goal = saveHouseholdGoal({
+    ...current,
+    ...patch,
+    id: current.id,
+    householdId,
+    updatedAt: Date.now(),
+  });
+  if (goal.status === "completed") {
+    trackEvent(userId, "household_goal_completed", { householdId, goalId });
+  }
+  return { goal };
 }
 
 function relationshipStatusFromMembers(

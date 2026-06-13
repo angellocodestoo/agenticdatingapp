@@ -149,7 +149,7 @@ export default function HouseholdPage() {
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
                       <p className="text-xs text-stone-400">Decisions</p>
                       <p className="text-sm font-medium text-stone-700 mt-1">
-                        Structured decisions arrive in Section 6
+                        Structure the big calls
                       </p>
                     </div>
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
@@ -182,6 +182,12 @@ export default function HouseholdPage() {
                       className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
                     >
                       Responsibilities
+                    </Link>
+                    <Link
+                      href="/household/goals"
+                      className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
+                    >
+                      Decisions
                     </Link>
                     <Link
                       href="/household/settings"

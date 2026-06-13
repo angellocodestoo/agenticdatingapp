@@ -429,6 +429,39 @@ export type HouseholdRitual = {
   updatedAt: number;
 };
 
+export type HouseholdDecisionStatus = "open" | "resolved" | "archived";
+export type HouseholdGoalStatus = "active" | "completed" | "paused";
+
+export type HouseholdDecision = {
+  id: string;
+  householdId: string;
+  createdByUserId: string;
+  domain: string;
+  status: HouseholdDecisionStatus;
+  title: string;
+  options: string[];
+  pros: string[];
+  concerns: string[];
+  deadlineAt?: string;
+  outcome?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type HouseholdGoal = {
+  id: string;
+  householdId: string;
+  createdByUserId: string;
+  category: string;
+  status: HouseholdGoalStatus;
+  title: string;
+  targetAt?: string;
+  milestones: Array<{ id: string; title: string; completed: boolean }>;
+  partnerNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -491,7 +524,11 @@ export type AnalyticsEventName =
   | "household_responsibility_created"
   | "household_responsibility_completed"
   | "household_ritual_created"
-  | "household_ritual_completed";
+  | "household_ritual_completed"
+  | "household_decision_created"
+  | "household_decision_resolved"
+  | "household_goal_created"
+  | "household_goal_completed";
 
 export type AnalyticsEvent = {
   id: string;
