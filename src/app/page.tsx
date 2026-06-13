@@ -44,10 +44,11 @@ export default function LandingPage() {
           <h1 className="text-5xl font-semibold tracking-tight text-stone-900 leading-tight">
             Your agent finds<br />your person.
           </h1>
-          <p className="text-lg text-stone-500 max-w-md mx-auto leading-relaxed">
-            Legend says an invisible red thread ties you to your person — it can stretch
-            and tangle, but never break. Your agent follows it: learns who you really are,
-            talks to other agents, and only surfaces dates worth having.
+          <p className="text-lg text-stone-500 max-w-xl mx-auto leading-relaxed">
+            Legend says an invisible red thread ties you to your destined partner — it can
+            stretch and tangle, but never break. The Red String network brings this legend
+            to life. Your private AI agent securely maps your world, communicates with other
+            agents behind closed doors, and only surfaces the connections worth your evening.
           </p>
         </div>
 
@@ -56,7 +57,7 @@ export default function LandingPage() {
             href="/onboarding"
             className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 text-white px-8 py-3.5 text-sm font-medium hover:bg-red-700 transition-colors shadow-sm"
           >
-            Follow my string
+            Reveal my string
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
@@ -65,9 +66,9 @@ export default function LandingPage() {
 
         <div className="pt-4 grid grid-cols-3 gap-6 border-t border-stone-200">
           {[
-            { step: "01", title: "Connect your life", desc: "Calendar, Spotify, LinkedIn, activity data. Your agent builds your real profile." },
-            { step: "02", title: "Your agent follows the string", desc: "It screens everyone nearby, talks to their agents, and picks who's actually worth your evening." },
-            { step: "03", title: "The knot is tied", desc: "You get a match report, a booked date, and a warm-up call — all done for you." },
+            { step: "01", title: "Anchoring the Thread", desc: "Connect your digital life — Calendar, Spotify, and LinkedIn. Your agent builds a deeply private, high-signal blueprint of who you actually are, away from the noise." },
+            { step: "02", title: "Tracing the Path", desc: "Your agent quietly screens the network, interviews the agents of compatible partners, and rigorously filters for scheduling, value, and lifestyle alignment." },
+            { step: "03", title: "The Intersection", desc: "No endless chatting. You receive a verified match report, a confirmed reservation on your calendar, and a seamless introduction. Your agent handles the logistics; you enjoy the chemistry." },
           ].map((item) => (
             <div key={item.step} className="text-left space-y-1">
               <div className="text-xs font-mono text-red-500">{item.step}</div>
