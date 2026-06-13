@@ -10,7 +10,9 @@ import type {
   DateFeedback,
   DateProposal,
   MatchLifecycleRecord,
+  RelationshipCheckIn,
   RelationshipEligibility,
+  RelationshipGuidance,
   RelationshipMember,
   RelationshipPlan,
   RelationshipRecord,
@@ -863,6 +865,126 @@ export function updateRelationshipPlanStatus(
     type: updated.type,
   });
   return { plan: updated };
+}
+
+export function saveRelationshipCheckIn(
+  userId: string,
+  relationshipId: string,
+  checkIn: Omit<RelationshipCheckIn, "id" | "relationshipId" | "userId" | "createdAt">
+): {
+  checkIn?: RelationshipCheckIn;
+  error?: string;
+} {
+  const access = canUseRelationship(userId, relationshipId);
+  if (!access.relationship) return { error: access.error };
+  const saved: RelationshipCheckIn = {
+    ...checkIn,
+    id: uid("rci"),
+    relationshipId,
+    userId,
+    createdAt: Date.now(),
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO relationship_check_ins
+       (id, relationship_id, user_id, sharing_level, created_at, json)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      saved.id,
+      relationshipId,
+      userId,
+      saved.sharingLevel,
+      saved.createdAt,
+      JSON.stringify(saved)
+    );
+  trackEvent(userId, "relationship_check_in_submitted", {
+    relationshipId,
+    sharingLevel: saved.sharingLevel,
+    mood: saved.mood,
+    closeness: saved.closeness,
+    energy: saved.energy,
+    stress: saved.stress,
+  });
+  return { checkIn: saved };
+}
+
+export function getRelationshipCheckIns(
+  userId: string,
+  relationshipId: string,
+  limit = 30
+): {
+  checkIns?: RelationshipCheckIn[];
+  error?: string;
+} {
+  const access = canUseRelationship(userId, relationshipId);
+  if (!access.relationship) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM relationship_check_ins
+       WHERE relationship_id = ?
+       ORDER BY created_at DESC LIMIT ?`
+    )
+    .all(relationshipId, limit) as Array<{ json: string }>;
+  const checkIns = rows
+    .map((r) => JSON.parse(r.json) as RelationshipCheckIn)
+    .filter((item) => item.userId === userId || item.sharingLevel !== "private");
+  return { checkIns };
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
+}
+
+export function getRelationshipGuidance(
+  userId: string,
+  relationshipId: string
+): {
+  guidance?: RelationshipGuidance;
+  checkIns?: RelationshipCheckIn[];
+  error?: string;
+} {
+  const access = canUseRelationship(userId, relationshipId);
+  if (!access.relationship) return { error: access.error };
+  const checkInsResult = getRelationshipCheckIns(userId, relationshipId, 10);
+  const checkIns = checkInsResult.checkIns ?? [];
+  const myMember = getRelationshipMember(relationshipId, userId);
+  const shared = access.relationship.profile;
+  const stress = average(checkIns.map((item) => item.stress));
+  const closeness = average(checkIns.map((item) => item.closeness));
+  const suggestions = [
+    myMember?.preferences.repairPreference
+      ? `Use your repair preference: ${myMember.preferences.repairPreference}.`
+      : "Keep repair small: name the moment, ask one honest question, and give the conversation room.",
+    shared.planningCadence
+      ? `Protect the cadence you chose: ${shared.planningCadence}.`
+      : "Put one low-pressure quality-time window on the calendar.",
+    myMember?.preferences.communicationChannel
+      ? `Use the channel that works best for you: ${myMember.preferences.communicationChannel}.`
+      : "Choose the channel before the topic so logistics do not become the conflict.",
+  ];
+  if (stress !== null && stress >= 4) {
+    suggestions.unshift("Lead with capacity before content: say what kind of day you are having first.");
+  }
+  if (closeness !== null && closeness <= 2.5) {
+    suggestions.unshift("Ask for a small reconnection moment before discussing logistics.");
+  }
+  const guidance: RelationshipGuidance = {
+    headline:
+      checkIns.length > 0
+        ? "Based on the latest check-ins, keep the next move simple and explicit."
+        : "Start with one lightweight check-in so guidance can become more personal.",
+    suggestions: suggestions.slice(0, 4),
+    nextAction:
+      shared.nextThirtyDayGoal ??
+      "Schedule a 20-minute check-in and end with one plan you both actually want.",
+  };
+  trackEvent(userId, "relationship_guidance_viewed", {
+    relationshipId,
+    checkInCount: checkIns.length,
+  });
+  return { guidance, checkIns };
 }
 
 // Safety

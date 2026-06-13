@@ -159,13 +159,13 @@ export default function RelationshipPage() {
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
                       <p className="text-xs text-stone-400">Check-in</p>
                       <p className="text-sm font-medium text-stone-700 mt-1">
-                        Weekly rhythm arrives in Section 6
+                        Submit a private or shared pulse
                       </p>
                     </div>
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
                       <p className="text-xs text-stone-400">Guidance</p>
                       <p className="text-sm font-medium text-stone-700 mt-1">
-                        Communication coaching arrives in Section 6
+                        Based on preferences and check-ins
                       </p>
                     </div>
                   </div>
@@ -192,6 +192,12 @@ export default function RelationshipPage() {
                       className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
                     >
                       Planner
+                    </Link>
+                    <Link
+                      href="/relationship/check-in"
+                      className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
+                    >
+                      Check-in
                     </Link>
                     <Link
                       href="/relationship/settings"

@@ -116,6 +116,14 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL,
       json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS relationship_check_ins (
+      id TEXT PRIMARY KEY,
+      relationship_id TEXT NOT NULL REFERENCES relationships(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      sharing_level TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -160,6 +168,8 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_relationship_members_relationship ON relationship_members(relationship_id);
     CREATE INDEX IF NOT EXISTS idx_relationship_plans_relationship ON relationship_plans(relationship_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_relationship_plans_status ON relationship_plans(status, scheduled_for);
+    CREATE INDEX IF NOT EXISTS idx_relationship_check_ins_relationship ON relationship_check_ins(relationship_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_relationship_check_ins_user ON relationship_check_ins(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC);

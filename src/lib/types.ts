@@ -290,6 +290,27 @@ export type RelationshipPlan = {
   updatedAt: number;
 };
 
+export type RelationshipCheckIn = {
+  id: string;
+  relationshipId: string;
+  userId: string;
+  sharingLevel: RelationshipSharingLevel;
+  mood: number;
+  closeness: number;
+  energy: number;
+  stress: number;
+  appreciation?: string;
+  need?: string;
+  note?: string;
+  createdAt: number;
+};
+
+export type RelationshipGuidance = {
+  headline: string;
+  suggestions: string[];
+  nextAction: string;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -337,7 +358,9 @@ export type AnalyticsEventName =
   | "relationship_plan_suggested"
   | "relationship_plan_accepted"
   | "relationship_plan_declined"
-  | "relationship_plan_completed";
+  | "relationship_plan_completed"
+  | "relationship_check_in_submitted"
+  | "relationship_guidance_viewed";
 
 export type AnalyticsEvent = {
   id: string;
