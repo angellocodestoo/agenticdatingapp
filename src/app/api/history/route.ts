@@ -36,6 +36,8 @@ export async function GET() {
     const candidate = proposal.candidateId
       ? candidateIndex.get(proposal.candidateId)
       : undefined;
+    const lifecycle =
+      matchLifecycles.find((m) => m.proposalId === proposal.proposalId) ?? null;
     const call = calls.find((c) => c.matchId === proposal.matchId) ?? null;
     const fb =
       feedback.find((f) => f.proposalId === proposal.proposalId) ?? null;
@@ -48,6 +50,7 @@ export async function GET() {
       feedback: fb,
       isPast,
       needsFeedback: proposal.status === "accepted" && !fb,
+      matchLifecycleId: lifecycle?.id ?? null,
     };
   });
 

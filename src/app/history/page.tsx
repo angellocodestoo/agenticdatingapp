@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import type { DateFeedback, DateProposal, WarmupCall } from "@/lib/types";
+import type { DateFeedback, DateProposal, RelationshipRecord, WarmupCall } from "@/lib/types";
 
 type DateEntry = {
   proposal: DateProposal;
@@ -12,6 +12,7 @@ type DateEntry = {
   feedback: DateFeedback | null;
   isPast: boolean;
   needsFeedback: boolean;
+  matchLifecycleId: string | null;
 };
 
 type RunEntry = {
@@ -32,6 +33,10 @@ type IncomingRequest = {
   requesterBio: string;
   reportSummary: string;
   highlights: string[];
+};
+
+type RelationshipEntry = {
+  relationship: RelationshipRecord;
 };
 
 function formatDatetime(iso: string) {
@@ -182,20 +187,25 @@ export default function HistoryPage() {
   const [dates, setDates] = useState<DateEntry[]>([]);
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
+  const [relationships, setRelationships] = useState<RelationshipEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [openFeedback, setOpenFeedback] = useState<string | null>(null);
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const [busyRelationshipId, setBusyRelationshipId] = useState<string | null>(null);
   const [safetyMsg, setSafetyMsg] = useState<string | null>(null);
+  const [relationshipMsg, setRelationshipMsg] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     Promise.all([
       fetch("/api/history").then((r) => r.json()),
       fetch("/api/mutual-interest").then((r) => r.json()),
+      fetch("/api/relationships").then((r) => r.json()),
     ])
-      .then(([history, mutual]) => {
+      .then(([history, mutual, relationshipData]) => {
         setDates(history.dates ?? []);
         setRuns(history.runs ?? []);
         setIncoming(mutual.requests ?? []);
+        setRelationships(relationshipData.relationships ?? []);
         setLoaded(true);
       });
   }, []);
@@ -232,6 +242,24 @@ export default function HistoryPage() {
     );
   }
 
+  async function openRelationshipMode(matchLifecycleId: string) {
+    setBusyRelationshipId(matchLifecycleId);
+    setRelationshipMsg(null);
+    const res = await fetch("/api/relationships", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matchLifecycleId }),
+    });
+    const data = await res.json();
+    setBusyRelationshipId(null);
+    if (!res.ok) {
+      setRelationshipMsg(data.error ?? "Could not open relationship mode.");
+      return;
+    }
+    setRelationshipMsg("Relationship mode invitation created.");
+    refresh();
+  }
+
   useEffect(refresh, [refresh]);
 
   if (!loaded) {
@@ -244,6 +272,9 @@ export default function HistoryPage() {
 
   const upcoming = dates.filter((d) => d.proposal.status === "accepted" && !d.isPast);
   const past = dates.filter((d) => d.proposal.status !== "accepted" || d.isPast);
+  const relationshipLifecycleIds = new Set(
+    relationships.map((entry) => entry.relationship.sourceMatchLifecycleId)
+  );
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-amber-50 px-4 py-10">
@@ -272,6 +303,9 @@ export default function HistoryPage() {
 
         {safetyMsg && (
           <p className="rounded-2xl bg-stone-900 text-white text-xs px-4 py-2.5">{safetyMsg}</p>
+        )}
+        {relationshipMsg && (
+          <p className="rounded-2xl bg-stone-900 text-white text-xs px-4 py-2.5">{relationshipMsg}</p>
         )}
 
         {incoming.length > 0 && (
@@ -400,6 +434,29 @@ export default function HistoryPage() {
                         🤖 {l}
                       </p>
                     ))}
+                  </div>
+                )}
+
+                {d.feedback?.wouldSeeAgain && d.matchLifecycleId && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {relationshipLifecycleIds.has(d.matchLifecycleId) ? (
+                      <Link
+                        href="/relationship"
+                        className="rounded-full bg-rose-50 text-rose-600 text-sm font-medium px-4 py-2 hover:bg-rose-100 transition-colors"
+                      >
+                        View relationship mode
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => openRelationshipMode(d.matchLifecycleId!)}
+                        disabled={busyRelationshipId === d.matchLifecycleId}
+                        className="rounded-full bg-rose-500 text-white text-sm font-medium px-4 py-2 hover:bg-rose-600 disabled:opacity-50 transition-colors"
+                      >
+                        {busyRelationshipId === d.matchLifecycleId
+                          ? "Opening..."
+                          : "Open relationship mode"}
+                      </button>
+                    )}
                   </div>
                 )}
 
