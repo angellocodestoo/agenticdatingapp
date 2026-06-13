@@ -301,7 +301,13 @@ export type AnalyticsEventName =
   | "date_declined"
   | "feedback_submitted"
   | "safety_action_created"
-  | "relationship_invitation_created";
+  | "relationship_invitation_created"
+  | "relationship_invitation_accepted"
+  | "relationship_invitation_declined"
+  | "relationship_mode_paused"
+  | "relationship_mode_resumed"
+  | "relationship_mode_left"
+  | "relationship_mode_safety_disabled";
 
 export type AnalyticsEvent = {
   id: string;

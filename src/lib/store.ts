@@ -363,6 +363,20 @@ export function getRelationshipMembers(relationshipId: string): RelationshipMemb
   return rows.map((r) => JSON.parse(r.json) as RelationshipMember);
 }
 
+export function getRelationshipMember(
+  relationshipId: string,
+  userId: string
+): RelationshipMember | null {
+  const row = getDb()
+    .prepare(
+      `SELECT json FROM relationship_members
+       WHERE relationship_id = ? AND user_id = ?
+       LIMIT 1`
+    )
+    .get(relationshipId, userId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as RelationshipMember) : null;
+}
+
 export function getRelationshipsForUser(userId: string): Array<{
   relationship: RelationshipRecord;
   members: RelationshipMember[];
@@ -507,6 +521,126 @@ export function createRelationshipInvitation(
   return { relationship, members };
 }
 
+function relationshipStatusFromMembers(
+  members: RelationshipMember[]
+): RelationshipRecord["status"] {
+  if (members.some((member) => member.status === "removed_for_safety")) {
+    return "safety_disabled";
+  }
+  if (members.some((member) => member.status === "left" || member.status === "declined")) {
+    return "ended";
+  }
+  if (members.some((member) => member.status === "paused")) {
+    return "paused";
+  }
+  if (members.length >= 2 && members.every((member) => member.status === "accepted")) {
+    return "active";
+  }
+  return "pending";
+}
+
+export function respondToRelationshipMembership(
+  userId: string,
+  relationshipId: string,
+  action: "accept" | "decline" | "pause" | "resume" | "leave"
+): {
+  relationship?: RelationshipRecord;
+  members?: RelationshipMember[];
+  error?: string;
+} {
+  const relationship = getRelationship(relationshipId);
+  if (!relationship) return { error: "Relationship not found" };
+  const member = getRelationshipMember(relationshipId, userId);
+  if (!member) return { error: "Relationship membership not found" };
+  if (relationship.status === "safety_disabled" || member.status === "removed_for_safety") {
+    return { error: "Relationship mode is disabled for safety" };
+  }
+  if (member.status === "left") return { error: "You already left this relationship space" };
+
+  const nextStatusByAction = {
+    accept: "accepted",
+    decline: "declined",
+    pause: "paused",
+    resume: "accepted",
+    leave: "left",
+  } as const;
+  if (action === "accept" && member.status !== "invited" && member.status !== "paused") {
+    return { error: "Only invited or paused members can accept" };
+  }
+  if (action === "resume" && member.status !== "paused") {
+    return { error: "Only paused members can resume" };
+  }
+  if (action === "decline" && member.status !== "invited") {
+    return { error: "Only invited members can decline" };
+  }
+  if (action === "pause" && member.status !== "accepted") {
+    return { error: "Only accepted members can pause" };
+  }
+
+  const now = Date.now();
+  const updatedMember = saveRelationshipMember({
+    ...member,
+    status: nextStatusByAction[action],
+    updatedAt: now,
+  });
+  const members = getRelationshipMembers(relationshipId).map((existing) =>
+    existing.id === updatedMember.id ? updatedMember : existing
+  );
+  const updatedRelationship = saveRelationship({
+    ...relationship,
+    status: relationshipStatusFromMembers(members),
+    updatedAt: now,
+  });
+  const eventByAction = {
+    accept: "relationship_invitation_accepted",
+    decline: "relationship_invitation_declined",
+    pause: "relationship_mode_paused",
+    resume: "relationship_mode_resumed",
+    leave: "relationship_mode_left",
+  } as const;
+  trackEvent(userId, eventByAction[action], {
+    relationshipId,
+    sourceMatchLifecycleId: relationship.sourceMatchLifecycleId,
+  });
+  return {
+    relationship: updatedRelationship,
+    members,
+  };
+}
+
+export function disableRelationshipsForSafety(
+  userId: string,
+  candidateId: string
+): RelationshipRecord[] {
+  const disabled: RelationshipRecord[] = [];
+  for (const { relationship, members } of getRelationshipsForUser(userId)) {
+    const targetMember = members.find((member) => member.candidateId === candidateId);
+    if (!targetMember) continue;
+    const now = Date.now();
+    for (const member of members) {
+      saveRelationshipMember({
+        ...member,
+        status:
+          member.id === targetMember.id || member.userId === userId
+            ? "removed_for_safety"
+            : member.status,
+        updatedAt: now,
+      });
+    }
+    const updated = saveRelationship({
+      ...relationship,
+      status: "safety_disabled",
+      updatedAt: now,
+    });
+    trackEvent(userId, "relationship_mode_safety_disabled", {
+      relationshipId: relationship.id,
+      candidateId,
+    });
+    disabled.push(updated);
+  }
+  return disabled;
+}
+
 // Safety
 
 export function saveSafetyEvent(
@@ -532,6 +666,9 @@ export function saveSafetyEvent(
       safetyEvent.createdAt,
       JSON.stringify(safetyEvent)
     );
+  if (safetyEvent.action === "block") {
+    disableRelationshipsForSafety(userId, safetyEvent.candidateId);
+  }
   return safetyEvent;
 }
 
