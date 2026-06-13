@@ -51,7 +51,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | 15 | `/household/review` | Submit weekly reviews for energy, fairness, load, and connection |
 | 16 | `/household/memory` | Preserve private or shared partnership memory |
 | 17 | `/legacy` | Capture life chapters, anniversaries, and renewal prompts |
-| 18 | `/admin/safety` | Review safety reports with an admin token |
+| 18 | `/admin/launch` | Review launch readiness with an admin token |
+| 19 | `/admin/safety` | Review safety reports with an admin token |
 
 ## Phase 1 Capabilities
 
@@ -196,7 +197,9 @@ This makes production swaps for calendar availability, places, and phone masking
 - `/api/health` readiness endpoint
 - Runtime configuration report
 - PWA manifest and mobile app metadata
+- App icon PNGs for PWA/native store packaging
 - Privacy export and account deletion from `/settings`
+- Launch readiness checklist at `/admin/launch`
 - Admin safety review API and `/admin/safety` screen
 - Notification provider abstraction with mock defaults
 - Configurable SQLite storage path
@@ -243,6 +246,7 @@ flowchart LR
 | Legacy | `src/app/api/legacy/route.ts`, `src/app/legacy/page.tsx` |
 | Production checks | `src/app/api/health/route.ts`, `src/lib/config.ts` |
 | Privacy controls | `src/app/api/privacy/route.ts`, `src/app/settings/page.tsx` |
+| Launch readiness | `src/app/api/admin/launch/route.ts`, `src/app/admin/launch/page.tsx`, `src/lib/launchReadiness.ts` |
 | Admin safety review | `src/app/api/admin/safety/route.ts`, `src/app/admin/safety/page.tsx` |
 
 ## Configuration
@@ -254,6 +258,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 ANTHROPIC_MODEL=claude-sonnet-4-6
 APP_PUBLIC_ORIGIN=http://localhost:3000
 ADMIN_TOKEN=change-me
+REDSTRING_DB_FILE=redstring.db
 SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
 SPOTIFY_REDIRECT_URI=http://localhost:3000/api/connect/spotify/callback
@@ -283,8 +288,7 @@ The app now has the product backbone from dating through household and legacy mo
 - Replace mock venue recommendations with a places provider.
 - Replace mock masked numbers with a phone provider.
 - Decide whether launch uses PWA-first distribution or a native wrapper such as Capacitor.
-- Generate final app icons and store screenshots.
-- Add privacy policy and terms pages.
+- Capture final store screenshots.
 - Move from local SQLite to managed persistent storage if deploying more than one server instance.
 - Add production notification delivery for relationship invites, plans, and check-ins.
 - Add deeper admin audit trails and retention policy tooling.
@@ -300,3 +304,10 @@ Phase 3 expands Red String into a marriage and household operating system for co
 ## Phase 4
 
 Phase 4 expands Red String into the decades layer for chapters, anniversaries, renewal, and long-term memory. See [docs/phase-4-prd.md](docs/phase-4-prd.md) for the build plan.
+
+## Launch Docs
+
+- [Production launch PRD](docs/production-launch-prd.md)
+- [Deployment guide](docs/deployment-guide.md)
+- [App Store readiness](docs/app-store-readiness.md)
+- [Native wrapper decision](docs/native-wrapper-decision.md)
