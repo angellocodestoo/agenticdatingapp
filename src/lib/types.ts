@@ -397,6 +397,38 @@ export type HouseholdEligibility = {
   relationship?: RelationshipRecord;
 };
 
+export type HouseholdResponsibilityStatus = "open" | "completed" | "paused";
+export type HouseholdRitualStatus = "active" | "completed" | "paused";
+
+export type HouseholdResponsibility = {
+  id: string;
+  householdId: string;
+  ownerUserId: string;
+  backupUserId?: string;
+  type: "recurring" | "one_time";
+  status: HouseholdResponsibilityStatus;
+  title: string;
+  dueAt?: string;
+  cadence?: string;
+  emotionalLoad?: "low" | "medium" | "high";
+  handoffNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type HouseholdRitual = {
+  id: string;
+  householdId: string;
+  createdByUserId: string;
+  status: HouseholdRitualStatus;
+  title: string;
+  cadence?: string;
+  nextAt?: string;
+  why?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -455,7 +487,11 @@ export type AnalyticsEventName =
   | "household_mode_resumed"
   | "household_mode_left"
   | "household_mode_safety_disabled"
-  | "household_profile_updated";
+  | "household_profile_updated"
+  | "household_responsibility_created"
+  | "household_responsibility_completed"
+  | "household_ritual_created"
+  | "household_ritual_completed";
 
 export type AnalyticsEvent = {
   id: string;

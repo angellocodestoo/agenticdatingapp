@@ -12,6 +12,8 @@ import type {
   HouseholdEligibility,
   HouseholdMember,
   HouseholdRecord,
+  HouseholdResponsibility,
+  HouseholdRitual,
   MatchLifecycleRecord,
   RelationshipCheckIn,
   RelationshipEligibility,
@@ -917,6 +919,200 @@ export function updateHouseholdProfile(
     sharingLevel: member.sharingLevel,
   });
   return { household, members };
+}
+
+export function saveHouseholdResponsibility(
+  responsibility: HouseholdResponsibility
+): HouseholdResponsibility {
+  getDb()
+    .prepare(
+      `INSERT INTO household_responsibilities
+       (id, household_id, owner_user_id, backup_user_id, type, status, due_at, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         owner_user_id = excluded.owner_user_id,
+         backup_user_id = excluded.backup_user_id,
+         status = excluded.status,
+         due_at = excluded.due_at,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      responsibility.id,
+      responsibility.householdId,
+      responsibility.ownerUserId,
+      responsibility.backupUserId ?? null,
+      responsibility.type,
+      responsibility.status,
+      responsibility.dueAt ?? null,
+      responsibility.createdAt,
+      responsibility.updatedAt,
+      JSON.stringify(responsibility)
+    );
+  return responsibility;
+}
+
+export function getHouseholdResponsibilities(
+  userId: string,
+  householdId: string
+): { responsibilities?: HouseholdResponsibility[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM household_responsibilities
+       WHERE household_id = ?
+       ORDER BY COALESCE(due_at, updated_at) ASC`
+    )
+    .all(householdId) as Array<{ json: string }>;
+  return { responsibilities: rows.map((r) => JSON.parse(r.json) as HouseholdResponsibility) };
+}
+
+export function createHouseholdResponsibility(
+  userId: string,
+  householdId: string,
+  input: Omit<HouseholdResponsibility, "id" | "householdId" | "createdAt" | "updatedAt">
+): { responsibility?: HouseholdResponsibility; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const now = Date.now();
+  const responsibility = saveHouseholdResponsibility({
+    ...input,
+    id: uid("hhr"),
+    householdId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  trackEvent(userId, "household_responsibility_created", {
+    householdId,
+    responsibilityId: responsibility.id,
+    ownerUserId: responsibility.ownerUserId,
+  });
+  return { responsibility };
+}
+
+export function updateHouseholdResponsibility(
+  userId: string,
+  householdId: string,
+  responsibilityId: string,
+  patch: Partial<HouseholdResponsibility>
+): { responsibility?: HouseholdResponsibility; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const row = getDb()
+    .prepare("SELECT json FROM household_responsibilities WHERE id = ? AND household_id = ?")
+    .get(responsibilityId, householdId) as { json: string } | undefined;
+  if (!row) return { error: "Responsibility not found" };
+  const current = JSON.parse(row.json) as HouseholdResponsibility;
+  const responsibility = saveHouseholdResponsibility({
+    ...current,
+    ...patch,
+    id: current.id,
+    householdId,
+    updatedAt: Date.now(),
+  });
+  if (responsibility.status === "completed") {
+    trackEvent(userId, "household_responsibility_completed", {
+      householdId,
+      responsibilityId,
+    });
+  }
+  return { responsibility };
+}
+
+export function saveHouseholdRitual(ritual: HouseholdRitual): HouseholdRitual {
+  getDb()
+    .prepare(
+      `INSERT INTO household_rituals
+       (id, household_id, created_by_user_id, status, cadence, next_at, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         status = excluded.status,
+         cadence = excluded.cadence,
+         next_at = excluded.next_at,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      ritual.id,
+      ritual.householdId,
+      ritual.createdByUserId,
+      ritual.status,
+      ritual.cadence ?? null,
+      ritual.nextAt ?? null,
+      ritual.createdAt,
+      ritual.updatedAt,
+      JSON.stringify(ritual)
+    );
+  return ritual;
+}
+
+export function getHouseholdRituals(
+  userId: string,
+  householdId: string
+): { rituals?: HouseholdRitual[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM household_rituals
+       WHERE household_id = ?
+       ORDER BY COALESCE(next_at, updated_at) ASC`
+    )
+    .all(householdId) as Array<{ json: string }>;
+  return { rituals: rows.map((r) => JSON.parse(r.json) as HouseholdRitual) };
+}
+
+export function createHouseholdRitual(
+  userId: string,
+  householdId: string,
+  input: Omit<HouseholdRitual, "id" | "householdId" | "createdByUserId" | "createdAt" | "updatedAt">
+): { ritual?: HouseholdRitual; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const now = Date.now();
+  const ritual = saveHouseholdRitual({
+    ...input,
+    id: uid("hrit"),
+    householdId,
+    createdByUserId: userId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  trackEvent(userId, "household_ritual_created", {
+    householdId,
+    ritualId: ritual.id,
+  });
+  return { ritual };
+}
+
+export function updateHouseholdRitual(
+  userId: string,
+  householdId: string,
+  ritualId: string,
+  patch: Partial<HouseholdRitual>
+): { ritual?: HouseholdRitual; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const row = getDb()
+    .prepare("SELECT json FROM household_rituals WHERE id = ? AND household_id = ?")
+    .get(ritualId, householdId) as { json: string } | undefined;
+  if (!row) return { error: "Ritual not found" };
+  const current = JSON.parse(row.json) as HouseholdRitual;
+  const ritual = saveHouseholdRitual({
+    ...current,
+    ...patch,
+    id: current.id,
+    householdId,
+    updatedAt: Date.now(),
+  });
+  if (ritual.status === "completed") {
+    trackEvent(userId, "household_ritual_completed", {
+      householdId,
+      ritualId,
+    });
+  }
+  return { ritual };
 }
 
 function relationshipStatusFromMembers(

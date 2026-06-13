@@ -144,6 +144,29 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL,
       json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS household_responsibilities (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id),
+      owner_user_id TEXT NOT NULL REFERENCES users(id),
+      backup_user_id TEXT REFERENCES users(id),
+      type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      due_at TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS household_rituals (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id),
+      created_by_user_id TEXT NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL,
+      cadence TEXT,
+      next_at TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -194,6 +217,10 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_households_created_by ON households(created_by_user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_household_members_user ON household_members(user_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_household_members_household ON household_members(household_id);
+    CREATE INDEX IF NOT EXISTS idx_household_responsibilities_household ON household_responsibilities(household_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_household_responsibilities_owner ON household_responsibilities(owner_user_id, status, due_at);
+    CREATE INDEX IF NOT EXISTS idx_household_rituals_household ON household_rituals(household_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_household_rituals_status ON household_rituals(status, next_at);
     CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC);

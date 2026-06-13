@@ -143,7 +143,7 @@ export default function HouseholdPage() {
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
                       <p className="text-xs text-stone-400">Responsibilities</p>
                       <p className="text-sm font-medium text-stone-700 mt-1">
-                        Task ownership arrives in Section 5
+                        Own tasks without losing the relationship
                       </p>
                     </div>
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
@@ -177,6 +177,12 @@ export default function HouseholdPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <Link
+                      href="/household/responsibilities"
+                      className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
+                    >
+                      Responsibilities
+                    </Link>
                     <Link
                       href="/household/settings"
                       className="rounded-full bg-rose-50 text-rose-600 text-sm font-medium px-4 py-2 hover:bg-rose-100"
