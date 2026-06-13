@@ -155,7 +155,7 @@ export default function HouseholdPage() {
                     <div className="rounded-xl bg-stone-50 border border-stone-100 p-4">
                       <p className="text-xs text-stone-400">Memory</p>
                       <p className="text-sm font-medium text-stone-700 mt-1">
-                        Partnership memory arrives in Section 7
+                        Preserve what matters
                       </p>
                     </div>
                   </div>
@@ -188,6 +188,18 @@ export default function HouseholdPage() {
                       className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
                     >
                       Decisions
+                    </Link>
+                    <Link
+                      href="/household/review"
+                      className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
+                    >
+                      Review
+                    </Link>
+                    <Link
+                      href="/household/memory"
+                      className="rounded-full bg-stone-900 text-white text-sm font-medium px-4 py-2 hover:bg-stone-700"
+                    >
+                      Memory
                     </Link>
                     <Link
                       href="/household/settings"

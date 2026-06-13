@@ -462,6 +462,41 @@ export type HouseholdGoal = {
   updatedAt: number;
 };
 
+export type HouseholdReview = {
+  id: string;
+  householdId: string;
+  userId: string;
+  sharingLevel: HouseholdSharingLevel;
+  relationshipEnergy: number;
+  logisticsLoad: number;
+  fairnessSense: number;
+  connectionSense: number;
+  appreciation?: string;
+  frictionPoint?: string;
+  nextWeekPriority?: string;
+  createdAt: number;
+};
+
+export type HouseholdMemoryType =
+  | "milestone"
+  | "decision"
+  | "repair"
+  | "gratitude"
+  | "ritual"
+  | "goal"
+  | "context";
+
+export type HouseholdMemory = {
+  id: string;
+  householdId: string;
+  userId: string;
+  type: HouseholdMemoryType;
+  sharingLevel: HouseholdSharingLevel;
+  title: string;
+  body?: string;
+  createdAt: number;
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -528,7 +563,9 @@ export type AnalyticsEventName =
   | "household_decision_created"
   | "household_decision_resolved"
   | "household_goal_created"
-  | "household_goal_completed";
+  | "household_goal_completed"
+  | "household_weekly_review_submitted"
+  | "household_memory_created";
 
 export type AnalyticsEvent = {
   id: string;

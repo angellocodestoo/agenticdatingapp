@@ -189,6 +189,23 @@ function open(): Database.Database {
       updated_at INTEGER NOT NULL,
       json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS household_reviews (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      sharing_level TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS household_memory (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      type TEXT NOT NULL,
+      sharing_level TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -247,6 +264,10 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_household_decisions_status ON household_decisions(status, deadline_at);
     CREATE INDEX IF NOT EXISTS idx_household_goals_household ON household_goals(household_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_household_goals_status ON household_goals(status, target_at);
+    CREATE INDEX IF NOT EXISTS idx_household_reviews_household ON household_reviews(household_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_household_reviews_user ON household_reviews(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_household_memory_household ON household_memory(household_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_household_memory_type ON household_memory(type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC);

@@ -12,8 +12,10 @@ import type {
   HouseholdEligibility,
   HouseholdDecision,
   HouseholdGoal,
+  HouseholdMemory,
   HouseholdMember,
   HouseholdRecord,
+  HouseholdReview,
   HouseholdResponsibility,
   HouseholdRitual,
   MatchLifecycleRecord,
@@ -1293,6 +1295,104 @@ export function updateHouseholdGoal(
     trackEvent(userId, "household_goal_completed", { householdId, goalId });
   }
   return { goal };
+}
+
+export function saveHouseholdReview(
+  userId: string,
+  householdId: string,
+  input: Omit<HouseholdReview, "id" | "householdId" | "userId" | "createdAt">
+): { review?: HouseholdReview; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const review: HouseholdReview = {
+    ...input,
+    id: uid("hrev"),
+    householdId,
+    userId,
+    createdAt: Date.now(),
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO household_reviews (id, household_id, user_id, sharing_level, created_at, json)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(review.id, householdId, userId, review.sharingLevel, review.createdAt, JSON.stringify(review));
+  trackEvent(userId, "household_weekly_review_submitted", {
+    householdId,
+    sharingLevel: review.sharingLevel,
+  });
+  return { review };
+}
+
+export function getHouseholdReviews(
+  userId: string,
+  householdId: string,
+  limit = 30
+): { reviews?: HouseholdReview[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM household_reviews
+       WHERE household_id = ?
+       ORDER BY created_at DESC LIMIT ?`
+    )
+    .all(householdId, limit) as Array<{ json: string }>;
+  return {
+    reviews: rows
+      .map((r) => JSON.parse(r.json) as HouseholdReview)
+      .filter((review) => review.userId === userId || review.sharingLevel !== "private"),
+  };
+}
+
+export function saveHouseholdMemory(
+  userId: string,
+  householdId: string,
+  input: Omit<HouseholdMemory, "id" | "householdId" | "userId" | "createdAt">
+): { memory?: HouseholdMemory; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const memory: HouseholdMemory = {
+    ...input,
+    id: uid("hmem"),
+    householdId,
+    userId,
+    createdAt: Date.now(),
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO household_memory (id, household_id, user_id, type, sharing_level, created_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(memory.id, householdId, userId, memory.type, memory.sharingLevel, memory.createdAt, JSON.stringify(memory));
+  trackEvent(userId, "household_memory_created", {
+    householdId,
+    memoryId: memory.id,
+    type: memory.type,
+    sharingLevel: memory.sharingLevel,
+  });
+  return { memory };
+}
+
+export function getHouseholdMemory(
+  userId: string,
+  householdId: string,
+  limit = 50
+): { memory?: HouseholdMemory[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM household_memory
+       WHERE household_id = ?
+       ORDER BY created_at DESC LIMIT ?`
+    )
+    .all(householdId, limit) as Array<{ json: string }>;
+  return {
+    memory: rows
+      .map((r) => JSON.parse(r.json) as HouseholdMemory)
+      .filter((item) => item.userId === userId || item.sharingLevel !== "private"),
+  };
 }
 
 function relationshipStatusFromMembers(
