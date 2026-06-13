@@ -204,3 +204,7 @@ Phase 1 and Phase 2 now have the product backbone for agentic dating and early r
 ## Phase 2
 
 Phase 2 expands Red String into an early-relationship copilot for mutually opted-in matches. See [docs/phase-2-prd.md](docs/phase-2-prd.md) for the original build plan.
+
+## Phase 3
+
+Phase 3 expands Red String into a marriage and household operating system for couples building a shared life. See [docs/phase-3-prd.md](docs/phase-3-prd.md) for the build plan.
