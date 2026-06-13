@@ -5,6 +5,7 @@ import {
   getFeedback,
   getHouseholdInsightSummary,
   getHouseholdsForUser,
+  getLegacyInsightSummary,
   getProfile,
   getProposals,
   getRelationshipInsightSummary,
@@ -24,6 +25,18 @@ export async function GET() {
   const householdInsights = getHouseholdsForUser(user.id)
     .map((entry) => {
       const result = getHouseholdInsightSummary(user.id, entry.household.id);
+      return result.summary
+        ? {
+            status: entry.household.status,
+            stage: entry.household.stage,
+            ...result.summary,
+          }
+        : null;
+    })
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== null);
+  const legacyInsights = getHouseholdsForUser(user.id)
+    .map((entry) => {
+      const result = getLegacyInsightSummary(user.id, entry.household.id);
       return result.summary
         ? {
             status: entry.household.status,
@@ -151,6 +164,7 @@ export async function GET() {
     },
     analytics,
     householdInsights,
+    legacyInsights,
     relationshipInsights,
     predictionAccuracy,
     learnings,

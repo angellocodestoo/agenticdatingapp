@@ -521,6 +521,75 @@ export type HouseholdInsightSummary = {
   guidance: string;
 };
 
+export type LegacyChapterType =
+  | "dating_era"
+  | "engagement"
+  | "wedding"
+  | "first_home"
+  | "family"
+  | "career_pivot"
+  | "move"
+  | "caregiving"
+  | "empty_nest"
+  | "retirement"
+  | "renewal"
+  | "custom";
+
+export type LegacyChapterStatus = "active" | "completed" | "archived";
+
+export type LegacyChapter = {
+  id: string;
+  householdId: string;
+  createdByUserId: string;
+  type: LegacyChapterType;
+  status: LegacyChapterStatus;
+  title: string;
+  startedAt?: string;
+  endedAt?: string;
+  highlights: string[];
+  lessons: string[];
+  gratitude?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type LegacyAnniversaryKind =
+  | "first_date"
+  | "commitment"
+  | "engagement"
+  | "wedding"
+  | "renewal"
+  | "family"
+  | "custom";
+
+export type LegacyAnniversary = {
+  id: string;
+  householdId: string;
+  createdByUserId: string;
+  kind: LegacyAnniversaryKind;
+  date: string;
+  title: string;
+  ritual?: string;
+  reflectionPrompt?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type LegacyInsightSummary = {
+  householdId: string;
+  chapterCount: number;
+  activeChapterCount: number;
+  anniversaryCount: number;
+  nextAnniversary?: {
+    id: string;
+    title: string;
+    date: string;
+    daysAway: number;
+  };
+  renewalPrompt: string;
+  longArcSignals: string[];
+};
+
 export type RelationshipEligibility = {
   eligible: boolean;
   reason?: string;
@@ -591,7 +660,12 @@ export type AnalyticsEventName =
   | "household_weekly_review_submitted"
   | "household_memory_created"
   | "household_resilience_signal_surfaced"
-  | "household_guidance_viewed";
+  | "household_guidance_viewed"
+  | "legacy_chapter_created"
+  | "legacy_anniversary_created"
+  | "legacy_insights_viewed"
+  | "privacy_export_requested"
+  | "account_deleted";
 
 export type AnalyticsEvent = {
   id: string;

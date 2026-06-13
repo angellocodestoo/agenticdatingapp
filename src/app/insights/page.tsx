@@ -85,6 +85,17 @@ type Insights = {
     };
     recent: Array<{ id: string; name: string; createdAt: number }>;
   };
+  legacyInsights: Array<{
+    householdId: string;
+    status: string;
+    stage: string;
+    chapterCount: number;
+    activeChapterCount: number;
+    anniversaryCount: number;
+    nextAnniversary?: { id: string; title: string; date: string; daysAway: number };
+    renewalPrompt: string;
+    longArcSignals: string[];
+  }>;
   householdInsights: Array<{
     householdId: string;
     status: string;
@@ -656,6 +667,52 @@ export default function InsightsPage() {
           ) : (
             <p className="text-sm text-stone-500">
               No household spaces yet. Once a relationship graduates, this becomes the shared-life operating report.
+            </p>
+          )}
+        </section>
+
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-700">Phase 4 legacy layer</h2>
+            <p className="text-xs text-stone-400 mt-1">
+              Long-arc chapters, anniversaries, renewal prompts, and decade-level signals.
+            </p>
+          </div>
+          {data.legacyInsights.length > 0 ? (
+            <div className="space-y-3">
+              {data.legacyInsights.map((summary) => (
+                <div key={summary.householdId} className="rounded-xl border border-stone-100 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-stone-800 capitalize">{summary.stage.replace(/_/g, " ")}</p>
+                      <p className="text-xs text-stone-400">
+                        {summary.chapterCount} chapters, {summary.anniversaryCount} anniversaries
+                      </p>
+                    </div>
+                    <span className="text-xs bg-stone-100 text-stone-600 rounded-full px-2.5 py-1">{summary.status}</span>
+                  </div>
+                  {summary.nextAnniversary && (
+                    <div className="rounded-lg bg-rose-50 border border-rose-100 p-3">
+                      <p className="text-sm font-medium text-rose-800">{summary.nextAnniversary.title}</p>
+                      <p className="text-xs text-rose-700 mt-0.5">
+                        In {summary.nextAnniversary.daysAway} days
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-xs text-stone-500">{summary.renewalPrompt}</p>
+                  {summary.longArcSignals.length > 0 && (
+                    <div className="space-y-1">
+                      {summary.longArcSignals.slice(0, 3).map((signal) => (
+                        <p key={signal} className="text-xs text-stone-500">{signal}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-stone-500">
+              No legacy spaces yet. Once household mode has activity, Legacy becomes the decades layer.
             </p>
           )}
         </section>

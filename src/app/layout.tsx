@@ -6,9 +6,20 @@ import AppNav from "@/components/AppNav";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
-  title: "Red String — Fate, handled.",
+  metadataBase: new URL(process.env.APP_PUBLIC_ORIGIN ?? "http://localhost:3000"),
+  title: "Red String - Fate, handled.",
   description:
-    "An invisible thread already ties you to your person. Your agent follows it — learns who you are, talks to other agents, and only surfaces dates worth having.",
+    "An invisible thread already ties you to your person. Your agent follows it, learns who you are, talks to other agents, and only surfaces dates worth having.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Red String",
+  appleWebApp: {
+    capable: true,
+    title: "Red String",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({

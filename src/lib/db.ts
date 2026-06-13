@@ -8,17 +8,18 @@ declare global {
 
 function open(): Database.Database {
   const dir = path.join(process.cwd(), "data");
+  const dbFile = process.env.REDSTRING_DB_FILE?.trim() || "redstring.db";
+  const dbPath = path.join(process.cwd(), "data", dbFile);
   fs.mkdirSync(dir, { recursive: true });
   // Migrate from the pre-rename database file if it exists.
   const oldPath = path.join(dir, "soulmate.db");
-  const newPath = path.join(dir, "redstring.db");
-  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
-    fs.renameSync(oldPath, newPath);
+  if (dbFile === "redstring.db" && fs.existsSync(oldPath) && !fs.existsSync(dbPath)) {
+    fs.renameSync(oldPath, dbPath);
     for (const suffix of ["-wal", "-shm"]) {
-      if (fs.existsSync(oldPath + suffix)) fs.renameSync(oldPath + suffix, newPath + suffix);
+      if (fs.existsSync(oldPath + suffix)) fs.renameSync(oldPath + suffix, dbPath + suffix);
     }
   }
-  const db = new Database(newPath);
+  const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -206,6 +207,35 @@ function open(): Database.Database {
       created_at INTEGER NOT NULL,
       json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS legacy_chapters (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id),
+      created_by_user_id TEXT NOT NULL REFERENCES users(id),
+      type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      started_at TEXT,
+      ended_at TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS legacy_anniversaries (
+      id TEXT PRIMARY KEY,
+      household_id TEXT NOT NULL REFERENCES households(id),
+      created_by_user_id TEXT NOT NULL REFERENCES users(id),
+      kind TEXT NOT NULL,
+      date TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS safety_reviews (
+      safety_event_id TEXT PRIMARY KEY REFERENCES safety_events(id),
+      status TEXT NOT NULL,
+      reviewed_by TEXT,
+      reviewed_at INTEGER,
+      notes TEXT
+    );
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -268,6 +298,10 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_household_reviews_user ON household_reviews(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_household_memory_household ON household_memory(household_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_household_memory_type ON household_memory(type, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_legacy_chapters_household ON legacy_chapters(household_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_legacy_chapters_status ON legacy_chapters(status, started_at);
+    CREATE INDEX IF NOT EXISTS idx_legacy_anniversaries_household ON legacy_anniversaries(household_id, date);
+    CREATE INDEX IF NOT EXISTS idx_safety_reviews_status ON safety_reviews(status, reviewed_at);
     CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC);

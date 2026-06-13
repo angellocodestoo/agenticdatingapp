@@ -20,6 +20,12 @@ import type {
   HouseholdResilienceSignal,
   HouseholdResponsibility,
   HouseholdRitual,
+  LegacyAnniversary,
+  LegacyAnniversaryKind,
+  LegacyChapter,
+  LegacyChapterStatus,
+  LegacyChapterType,
+  LegacyInsightSummary,
   MatchLifecycleRecord,
   RelationshipCheckIn,
   RelationshipEligibility,
@@ -1397,6 +1403,203 @@ export function getHouseholdMemory(
   };
 }
 
+export function createLegacyChapter(
+  userId: string,
+  householdId: string,
+  input: {
+    type: LegacyChapterType;
+    status?: LegacyChapterStatus;
+    title: string;
+    startedAt?: string;
+    endedAt?: string;
+    highlights?: string[];
+    lessons?: string[];
+    gratitude?: string;
+  }
+): { chapter?: LegacyChapter; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const now = Date.now();
+  const chapter: LegacyChapter = {
+    id: uid("legc"),
+    householdId,
+    createdByUserId: userId,
+    type: input.type,
+    status: input.status ?? "active",
+    title: input.title,
+    startedAt: input.startedAt,
+    endedAt: input.endedAt,
+    highlights: input.highlights ?? [],
+    lessons: input.lessons ?? [],
+    gratitude: input.gratitude,
+    createdAt: now,
+    updatedAt: now,
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO legacy_chapters
+       (id, household_id, created_by_user_id, type, status, started_at, ended_at, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      chapter.id,
+      householdId,
+      userId,
+      chapter.type,
+      chapter.status,
+      chapter.startedAt ?? null,
+      chapter.endedAt ?? null,
+      chapter.createdAt,
+      chapter.updatedAt,
+      JSON.stringify(chapter)
+    );
+  trackEvent(userId, "legacy_chapter_created", {
+    householdId,
+    chapterId: chapter.id,
+    type: chapter.type,
+  });
+  return { chapter };
+}
+
+export function getLegacyChapters(
+  userId: string,
+  householdId: string,
+  limit = 50
+): { chapters?: LegacyChapter[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM legacy_chapters
+       WHERE household_id = ?
+       ORDER BY COALESCE(started_at, created_at) DESC LIMIT ?`
+    )
+    .all(householdId, limit) as Array<{ json: string }>;
+  return { chapters: rows.map((r) => JSON.parse(r.json) as LegacyChapter) };
+}
+
+export function createLegacyAnniversary(
+  userId: string,
+  householdId: string,
+  input: {
+    kind: LegacyAnniversaryKind;
+    date: string;
+    title: string;
+    ritual?: string;
+    reflectionPrompt?: string;
+  }
+): { anniversary?: LegacyAnniversary; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const now = Date.now();
+  const anniversary: LegacyAnniversary = {
+    id: uid("lega"),
+    householdId,
+    createdByUserId: userId,
+    kind: input.kind,
+    date: input.date,
+    title: input.title,
+    ritual: input.ritual,
+    reflectionPrompt: input.reflectionPrompt,
+    createdAt: now,
+    updatedAt: now,
+  };
+  getDb()
+    .prepare(
+      `INSERT INTO legacy_anniversaries
+       (id, household_id, created_by_user_id, kind, date, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      anniversary.id,
+      householdId,
+      userId,
+      anniversary.kind,
+      anniversary.date,
+      anniversary.createdAt,
+      anniversary.updatedAt,
+      JSON.stringify(anniversary)
+    );
+  trackEvent(userId, "legacy_anniversary_created", {
+    householdId,
+    anniversaryId: anniversary.id,
+    kind: anniversary.kind,
+  });
+  return { anniversary };
+}
+
+export function getLegacyAnniversaries(
+  userId: string,
+  householdId: string,
+  limit = 50
+): { anniversaries?: LegacyAnniversary[]; error?: string } {
+  const access = canUseHousehold(userId, householdId);
+  if (!access.household) return { error: access.error };
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM legacy_anniversaries
+       WHERE household_id = ?
+       ORDER BY date ASC LIMIT ?`
+    )
+    .all(householdId, limit) as Array<{ json: string }>;
+  return { anniversaries: rows.map((r) => JSON.parse(r.json) as LegacyAnniversary) };
+}
+
+function nextOccurrenceDaysAway(date: string): number | null {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const now = new Date();
+  const target = new Date(now.getFullYear(), parsed.getMonth(), parsed.getDate());
+  if (target.getTime() < new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) {
+    target.setFullYear(target.getFullYear() + 1);
+  }
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function getLegacyInsightSummary(
+  userId: string,
+  householdId: string
+): { summary?: LegacyInsightSummary; error?: string } {
+  const chapters = getLegacyChapters(userId, householdId).chapters;
+  const anniversaries = getLegacyAnniversaries(userId, householdId).anniversaries;
+  if (!chapters || !anniversaries) return { error: "Could not load legacy data" };
+  const upcoming = anniversaries
+    .map((item) => ({ item, daysAway: nextOccurrenceDaysAway(item.date) }))
+    .filter((entry): entry is { item: LegacyAnniversary; daysAway: number } => entry.daysAway !== null)
+    .sort((a, b) => a.daysAway - b.daysAway)[0];
+  const longArcSignals: string[] = [];
+  if (chapters.some((chapter) => chapter.lessons.length > 0)) {
+    longArcSignals.push("Lessons are being preserved alongside milestones.");
+  }
+  if (chapters.length >= 3) {
+    longArcSignals.push("This relationship has multiple preserved life chapters to revisit.");
+  }
+  if (anniversaries.length === 0) {
+    longArcSignals.push("No anniversaries are protected yet.");
+  }
+  return {
+    summary: {
+      householdId,
+      chapterCount: chapters.length,
+      activeChapterCount: chapters.filter((chapter) => chapter.status === "active").length,
+      anniversaryCount: anniversaries.length,
+      nextAnniversary: upcoming
+        ? {
+            id: upcoming.item.id,
+            title: upcoming.item.title,
+            date: upcoming.item.date,
+            daysAway: upcoming.daysAway,
+          }
+        : undefined,
+      renewalPrompt:
+        upcoming && upcoming.daysAway <= 45
+          ? `Use ${upcoming.item.title} to name what you want to protect this year.`
+          : "Choose one chapter worth honoring before planning the next one.",
+      longArcSignals,
+    },
+  };
+}
+
 export function getHouseholdInsightSummary(
   userId: string,
   householdId: string
@@ -2110,6 +2313,170 @@ export function getBlockedCandidateIds(userId: string): Set<string> {
       .filter((event) => event.action === "block")
       .map((event) => event.candidateId)
   );
+}
+
+export type SafetyReviewStatus = "open" | "reviewed" | "action_taken";
+
+export type SafetyReviewRecord = {
+  event: SafetyEvent;
+  status: SafetyReviewStatus;
+  reviewedBy?: string;
+  reviewedAt?: number;
+  notes?: string;
+};
+
+export function listSafetyReviewQueue(limit = 100): SafetyReviewRecord[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT e.json, r.status, r.reviewed_by, r.reviewed_at, r.notes
+       FROM safety_events e
+       LEFT JOIN safety_reviews r ON r.safety_event_id = e.id
+       ORDER BY e.created_at DESC
+       LIMIT ?`
+    )
+    .all(limit) as Array<{
+    json: string;
+    status: SafetyReviewStatus | null;
+    reviewed_by: string | null;
+    reviewed_at: number | null;
+    notes: string | null;
+  }>;
+  return rows.map((row) => ({
+    event: JSON.parse(row.json) as SafetyEvent,
+    status: row.status ?? "open",
+    reviewedBy: row.reviewed_by ?? undefined,
+    reviewedAt: row.reviewed_at ?? undefined,
+    notes: row.notes ?? undefined,
+  }));
+}
+
+export function saveSafetyReview(
+  safetyEventId: string,
+  input: {
+    status: SafetyReviewStatus;
+    reviewedBy?: string;
+    notes?: string;
+  }
+): SafetyReviewRecord | null {
+  const row = getDb()
+    .prepare("SELECT json FROM safety_events WHERE id = ?")
+    .get(safetyEventId) as { json: string } | undefined;
+  if (!row) return null;
+  const reviewedAt = Date.now();
+  getDb()
+    .prepare(
+      `INSERT INTO safety_reviews (safety_event_id, status, reviewed_by, reviewed_at, notes)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(safety_event_id) DO UPDATE SET
+         status = excluded.status,
+         reviewed_by = excluded.reviewed_by,
+         reviewed_at = excluded.reviewed_at,
+         notes = excluded.notes`
+    )
+    .run(
+      safetyEventId,
+      input.status,
+      input.reviewedBy ?? null,
+      reviewedAt,
+      input.notes ?? null
+    );
+  return {
+    event: JSON.parse(row.json) as SafetyEvent,
+    status: input.status,
+    reviewedBy: input.reviewedBy,
+    reviewedAt,
+    notes: input.notes,
+  };
+}
+
+function jsonRows(query: string, ...params: unknown[]): unknown[] {
+  const rows = getDb().prepare(query).all(...params) as Array<{ json: string }>;
+  return rows.map((row) => JSON.parse(row.json));
+}
+
+export function exportUserData(userId: string) {
+  const db = getDb();
+  const user = db
+    .prepare("SELECT id, email, display_name, created_at FROM users WHERE id = ?")
+    .get(userId);
+  return {
+    exportedAt: new Date().toISOString(),
+    user,
+    profile: getProfile(userId),
+    settings: getSettings(userId),
+    runs: getRuns(userId, 500),
+    candidateProfile: getCandidateProfile(`usercand_${userId}`),
+    matchLifecycles: jsonRows(
+      "SELECT json FROM match_lifecycles WHERE user_id = ? ORDER BY updated_at DESC",
+      userId
+    ),
+    relationships: getRelationshipsForUser(userId),
+    households: getHouseholdsForUser(userId).map((entry) => ({
+      ...entry,
+      responsibilities: getHouseholdResponsibilities(userId, entry.household.id).responsibilities ?? [],
+      rituals: getHouseholdRituals(userId, entry.household.id).rituals ?? [],
+      decisions: getHouseholdDecisions(userId, entry.household.id).decisions ?? [],
+      goals: getHouseholdGoals(userId, entry.household.id).goals ?? [],
+      reviews: getHouseholdReviews(userId, entry.household.id).reviews ?? [],
+      memory: getHouseholdMemory(userId, entry.household.id).memory ?? [],
+      legacyChapters: getLegacyChapters(userId, entry.household.id).chapters ?? [],
+      legacyAnniversaries: getLegacyAnniversaries(userId, entry.household.id).anniversaries ?? [],
+    })),
+    proposals: getProposals(userId),
+    calls: getCalls(userId),
+    feedback: getFeedback(userId),
+    notifications: getNotifications(userId, 500),
+    safetyEvents: getSafetyEvents(userId),
+    analytics: getAnalyticsEvents(userId, 2000),
+  };
+}
+
+export function deleteUserAccount(userId: string): void {
+  const db = getDb();
+  const householdIds = getHouseholdsForUser(userId).map((entry) => entry.household.id);
+  const relationshipIds = getRelationshipsForUser(userId).map((entry) => entry.relationship.id);
+  const candidateId = `usercand_${userId}`;
+  const tx = db.transaction(() => {
+    for (const householdId of householdIds) {
+      db.prepare("DELETE FROM legacy_anniversaries WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM legacy_chapters WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM household_memory WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM household_reviews WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM household_goals WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM household_decisions WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM household_rituals WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM household_responsibilities WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM household_members WHERE household_id = ?").run(householdId);
+      db.prepare("DELETE FROM households WHERE id = ?").run(householdId);
+    }
+    for (const relationshipId of relationshipIds) {
+      db.prepare("DELETE FROM relationship_check_ins WHERE relationship_id = ?").run(relationshipId);
+      db.prepare("DELETE FROM relationship_plans WHERE relationship_id = ?").run(relationshipId);
+      db.prepare("DELETE FROM relationship_members WHERE relationship_id = ?").run(relationshipId);
+      db.prepare("DELETE FROM relationships WHERE id = ?").run(relationshipId);
+    }
+    const safetyIds = db
+      .prepare("SELECT id FROM safety_events WHERE user_id = ?")
+      .all(userId) as Array<{ id: string }>;
+    for (const row of safetyIds) {
+      db.prepare("DELETE FROM safety_reviews WHERE safety_event_id = ?").run(row.id);
+    }
+    db.prepare("DELETE FROM notifications WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM feedback WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM calls WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM proposals WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM analytics_events WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM safety_events WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM match_lifecycles WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM runs WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM settings WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM profiles WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM candidate_profiles WHERE id = ? OR owner_user_id = ?").run(candidateId, userId);
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  });
+  trackEvent(userId, "account_deleted", {});
+  tx();
 }
 
 // Analytics

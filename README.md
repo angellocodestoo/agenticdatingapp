@@ -16,6 +16,8 @@ Red String is an agentic relationship product for people who want fewer, better 
 10. Converts eligible mutual matches into relationship mode with consent from both partners.
 11. Coordinates shared plans, check-ins, partner preferences, communication guidance, and friction signals.
 12. Graduates active relationships into household mode for responsibilities, rituals, decisions, goals, reviews, memory, and resilience insights.
+13. Preserves long-term legacy chapters, anniversaries, renewal prompts, and decade-level insights.
+14. Provides health checks, privacy export/delete, app metadata, and admin safety review tooling.
 
 ## Quick Start
 
@@ -48,6 +50,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | 14 | `/household/goals` | Structure shared decisions and long-term goals |
 | 15 | `/household/review` | Submit weekly reviews for energy, fairness, load, and connection |
 | 16 | `/household/memory` | Preserve private or shared partnership memory |
+| 17 | `/legacy` | Capture life chapters, anniversaries, and renewal prompts |
+| 18 | `/admin/safety` | Review safety reports with an admin token |
 
 ## Phase 1 Capabilities
 
@@ -177,6 +181,26 @@ This makes production swaps for calendar availability, places, and phone masking
 - Non-diagnostic resilience signals
 - Phase 3 analytics in `/insights`
 
+## Phase 4 Capabilities
+
+### Legacy Layer
+
+- Household-owned life chapters
+- Protected anniversaries
+- Renewal prompts
+- Long-arc signals in `/insights`
+- Dedicated `/legacy` dashboard
+
+## Production Foundation
+
+- `/api/health` readiness endpoint
+- Runtime configuration report
+- PWA manifest and mobile app metadata
+- Privacy export and account deletion from `/settings`
+- Admin safety review API and `/admin/safety` screen
+- Notification provider abstraction with mock defaults
+- Configurable SQLite storage path
+
 ## Architecture
 
 ```mermaid
@@ -216,6 +240,10 @@ flowchart LR
 | Decisions and goals | `src/app/api/households/[id]/decisions/route.ts`, `src/app/api/households/[id]/goals/route.ts`, `src/app/household/goals/page.tsx` |
 | Reviews and memory | `src/app/api/households/[id]/reviews/route.ts`, `src/app/api/households/[id]/memory/route.ts`, `src/app/household/review/page.tsx`, `src/app/household/memory/page.tsx` |
 | Household insights | `src/app/api/households/[id]/insights/route.ts` |
+| Legacy | `src/app/api/legacy/route.ts`, `src/app/legacy/page.tsx` |
+| Production checks | `src/app/api/health/route.ts`, `src/lib/config.ts` |
+| Privacy controls | `src/app/api/privacy/route.ts`, `src/app/settings/page.tsx` |
+| Admin safety review | `src/app/api/admin/safety/route.ts`, `src/app/admin/safety/page.tsx` |
 
 ## Configuration
 
@@ -224,9 +252,15 @@ Create `.env.local` if using optional integrations:
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
 ANTHROPIC_MODEL=claude-sonnet-4-6
+APP_PUBLIC_ORIGIN=http://localhost:3000
+ADMIN_TOKEN=change-me
 SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
 SPOTIFY_REDIRECT_URI=http://localhost:3000/api/connect/spotify/callback
+RESEND_API_KEY=
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
 ```
 
 Without these variables, Red String still runs locally with scripted agents and mock providers.
@@ -243,15 +277,17 @@ npm audit --audit-level=moderate
 
 ## Production Notes
 
-Phase 1 and Phase 2 now have the product backbone for agentic dating and early relationship support. Remaining production swaps are mostly provider, operations, and review tooling work:
+The app now has the product backbone from dating through household and legacy mode, plus the first production launch primitives. Remaining production work before an App Store submission:
 
 - Replace mock availability with calendar provider.
 - Replace mock venue recommendations with a places provider.
 - Replace mock masked numbers with a phone provider.
-- Move from local SQLite to managed persistent storage for multi-instance deployment.
-- Add admin review tooling for reports and moderation queues.
+- Decide whether launch uses PWA-first distribution or a native wrapper such as Capacitor.
+- Generate final app icons and store screenshots.
+- Add privacy policy and terms pages.
+- Move from local SQLite to managed persistent storage if deploying more than one server instance.
 - Add production notification delivery for relationship invites, plans, and check-ins.
-- Add deeper admin audit trails for relationship-mode safety events.
+- Add deeper admin audit trails and retention policy tooling.
 
 ## Phase 2
 
@@ -260,3 +296,7 @@ Phase 2 expands Red String into an early-relationship copilot for mutually opted
 ## Phase 3
 
 Phase 3 expands Red String into a marriage and household operating system for couples building a shared life. See [docs/phase-3-prd.md](docs/phase-3-prd.md) for the build plan.
+
+## Phase 4
+
+Phase 4 expands Red String into the decades layer for chapters, anniversaries, renewal, and long-term memory. See [docs/phase-4-prd.md](docs/phase-4-prd.md) for the build plan.

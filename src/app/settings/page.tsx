@@ -18,6 +18,8 @@ export default function SettingsPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [privacyBusy, setPrivacyBusy] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -56,6 +58,44 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "logout" }),
     });
+    router.push("/");
+    router.refresh();
+  }
+
+  async function exportData() {
+    setPrivacyBusy(true);
+    setError(null);
+    const res = await fetch("/api/privacy");
+    if (!res.ok) {
+      setError("Could not export data");
+      setPrivacyBusy(false);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `red-string-export-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setPrivacyBusy(false);
+  }
+
+  async function deleteAccount() {
+    if (deleteConfirmation !== "DELETE_MY_RED_STRING_DATA") return;
+    setPrivacyBusy(true);
+    setError(null);
+    const res = await fetch("/api/privacy", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation: deleteConfirmation }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "Could not delete account");
+      setPrivacyBusy(false);
+      return;
+    }
     router.push("/");
     router.refresh();
   }
@@ -216,6 +256,44 @@ export default function SettingsPage() {
               Build your persona before becoming discoverable.
             </p>
           )}
+        </section>
+
+        <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-stone-700">Privacy</h2>
+          <div className="space-y-3">
+            <p className="text-sm text-stone-500">
+              Export your Red String data or permanently delete this account and its local records.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={exportData}
+                disabled={privacyBusy}
+                className="rounded-full bg-stone-900 text-white text-sm font-medium px-5 py-2 hover:bg-stone-700 disabled:opacity-40"
+              >
+                Export data
+              </button>
+            </div>
+          </div>
+          <div className="border-t border-stone-100 pt-4 space-y-3">
+            <p className="text-xs text-stone-400">
+              To delete everything, type DELETE_MY_RED_STRING_DATA.
+            </p>
+            <div className="grid sm:grid-cols-[1fr_auto] gap-2">
+              <input
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                placeholder="DELETE_MY_RED_STRING_DATA"
+                className="min-w-0 rounded-xl border border-stone-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+              />
+              <button
+                onClick={deleteAccount}
+                disabled={privacyBusy || deleteConfirmation !== "DELETE_MY_RED_STRING_DATA"}
+                className="rounded-full bg-red-500 text-white text-sm font-medium px-5 py-2 disabled:opacity-40 hover:bg-red-600"
+              >
+                Delete account
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="bg-white rounded-2xl border border-stone-100 shadow-sm p-6 space-y-4">

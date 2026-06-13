@@ -12,6 +12,7 @@ const LINKS: Array<{ href: string; label: string }> = [
   { href: "/history", label: "Dates" },
   { href: "/relationship", label: "Relationship" },
   { href: "/household", label: "Household" },
+  { href: "/legacy", label: "Legacy" },
   { href: "/insights", label: "Insights" },
   { href: "/settings", label: "Settings" },
 ];
