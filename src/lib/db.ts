@@ -84,6 +84,27 @@ function open(): Database.Database {
       created_at INTEGER NOT NULL,
       json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS relationships (
+      id TEXT PRIMARY KEY,
+      source_match_lifecycle_id TEXT NOT NULL,
+      created_by_user_id TEXT NOT NULL REFERENCES users(id),
+      stage TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS relationship_members (
+      id TEXT PRIMARY KEY,
+      relationship_id TEXT NOT NULL REFERENCES relationships(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      candidate_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      sharing_level TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      json TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -122,6 +143,10 @@ function open(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_safety_events_user ON safety_events(user_id, candidate_id, action);
     CREATE INDEX IF NOT EXISTS idx_analytics_events_user ON analytics_events(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_analytics_events_name ON analytics_events(name, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_relationships_source_match ON relationships(source_match_lifecycle_id);
+    CREATE INDEX IF NOT EXISTS idx_relationships_created_by ON relationships(created_by_user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_relationship_members_user ON relationship_members(user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_relationship_members_relationship ON relationship_members(relationship_id);
     CREATE INDEX IF NOT EXISTS idx_proposals_user ON proposals(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC);

@@ -202,6 +202,75 @@ export type MatchLifecycleRecord = {
   updatedAt: number;
 };
 
+export type RelationshipStage =
+  | "early_dating"
+  | "exclusive"
+  | "committed"
+  | "paused";
+
+export type RelationshipStatus =
+  | "pending"
+  | "active"
+  | "paused"
+  | "ended"
+  | "safety_disabled";
+
+export type RelationshipMemberStatus =
+  | "invited"
+  | "accepted"
+  | "declined"
+  | "paused"
+  | "left"
+  | "removed_for_safety";
+
+export type RelationshipSharingLevel = "private" | "summary" | "shared";
+
+export type RelationshipRecord = {
+  id: string;
+  sourceMatchLifecycleId: string;
+  createdByUserId: string;
+  partnerUserIds: string[];
+  stage: RelationshipStage;
+  status: RelationshipStatus;
+  createdAt: number;
+  updatedAt: number;
+  profile: {
+    startDate?: string;
+    sharedValues: string[];
+    qualityTimePreferences: string[];
+    communicationNorms: string[];
+    planningCadence?: string;
+    nextThirtyDayGoal?: string;
+  };
+};
+
+export type RelationshipMember = {
+  id: string;
+  relationshipId: string;
+  userId: string;
+  candidateId: string;
+  status: RelationshipMemberStatus;
+  sharingLevel: RelationshipSharingLevel;
+  createdAt: number;
+  updatedAt: number;
+  preferences: {
+    communicationChannel?: string;
+    responseExpectation?: string;
+    planningStyle?: string;
+    affectionStyle?: string;
+    repairPreference?: string;
+    dateNightPreferences: string[];
+    aloneTimeNeeds?: string;
+    sensitiveTopics: string[];
+  };
+};
+
+export type RelationshipEligibility = {
+  eligible: boolean;
+  reason?: string;
+  lifecycle?: MatchLifecycleRecord;
+};
+
 export type SafetyAction = "block" | "report";
 
 export type SafetyEvent = {
@@ -231,7 +300,8 @@ export type AnalyticsEventName =
   | "date_accepted"
   | "date_declined"
   | "feedback_submitted"
-  | "safety_action_created";
+  | "safety_action_created"
+  | "relationship_invitation_created";
 
 export type AnalyticsEvent = {
   id: string;

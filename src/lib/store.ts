@@ -10,6 +10,9 @@ import type {
   DateFeedback,
   DateProposal,
   MatchLifecycleRecord,
+  RelationshipEligibility,
+  RelationshipMember,
+  RelationshipRecord,
   SafetyEvent,
   UserProfileState,
   WarmupCall,
@@ -287,6 +290,221 @@ export function getIncomingMatchRequests(ownerUserId: string): MatchLifecycleRec
 
 export function newMatchLifecycleId(): string {
   return uid("mlc");
+}
+
+// Relationship mode
+
+export function saveRelationship(record: RelationshipRecord): RelationshipRecord {
+  getDb()
+    .prepare(
+      `INSERT INTO relationships
+       (id, source_match_lifecycle_id, created_by_user_id, stage, status, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         stage = excluded.stage,
+         status = excluded.status,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      record.id,
+      record.sourceMatchLifecycleId,
+      record.createdByUserId,
+      record.stage,
+      record.status,
+      record.createdAt,
+      record.updatedAt,
+      JSON.stringify(record)
+    );
+  return record;
+}
+
+export function saveRelationshipMember(member: RelationshipMember): RelationshipMember {
+  getDb()
+    .prepare(
+      `INSERT INTO relationship_members
+       (id, relationship_id, user_id, candidate_id, status, sharing_level, created_at, updated_at, json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         status = excluded.status,
+         sharing_level = excluded.sharing_level,
+         updated_at = excluded.updated_at,
+         json = excluded.json`
+    )
+    .run(
+      member.id,
+      member.relationshipId,
+      member.userId,
+      member.candidateId,
+      member.status,
+      member.sharingLevel,
+      member.createdAt,
+      member.updatedAt,
+      JSON.stringify(member)
+    );
+  return member;
+}
+
+export function getRelationship(id: string): RelationshipRecord | null {
+  const row = getDb()
+    .prepare("SELECT json FROM relationships WHERE id = ?")
+    .get(id) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as RelationshipRecord) : null;
+}
+
+export function getRelationshipMembers(relationshipId: string): RelationshipMember[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT json FROM relationship_members
+       WHERE relationship_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(relationshipId) as Array<{ json: string }>;
+  return rows.map((r) => JSON.parse(r.json) as RelationshipMember);
+}
+
+export function getRelationshipsForUser(userId: string): Array<{
+  relationship: RelationshipRecord;
+  members: RelationshipMember[];
+}> {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT r.json
+       FROM relationships r
+       INNER JOIN relationship_members m ON m.relationship_id = r.id
+       WHERE m.user_id = ?
+       ORDER BY r.updated_at DESC`
+    )
+    .all(userId) as Array<{ json: string }>;
+  return rows.map((r) => {
+    const relationship = JSON.parse(r.json) as RelationshipRecord;
+    return {
+      relationship,
+      members: getRelationshipMembers(relationship.id),
+    };
+  });
+}
+
+export function getRelationshipBySourceMatch(
+  sourceMatchLifecycleId: string
+): RelationshipRecord | null {
+  const row = getDb()
+    .prepare(
+      `SELECT json FROM relationships
+       WHERE source_match_lifecycle_id = ?
+       ORDER BY updated_at DESC LIMIT 1`
+    )
+    .get(sourceMatchLifecycleId) as { json: string } | undefined;
+  return row ? (JSON.parse(row.json) as RelationshipRecord) : null;
+}
+
+export function getRelationshipEligibility(
+  userId: string,
+  matchLifecycleId: string
+): RelationshipEligibility {
+  const lifecycle = getMatchLifecycle(userId, matchLifecycleId);
+  if (!lifecycle) return { eligible: false, reason: "Match not found" };
+  if (!lifecycle.candidateOwnerUserId) {
+    return { eligible: false, reason: "Relationship mode requires a real user match", lifecycle };
+  }
+  if (lifecycle.candidateConsent !== "accepted") {
+    return { eligible: false, reason: "Mutual interest must be accepted first", lifecycle };
+  }
+  if (!["date_proposed", "accepted"].includes(lifecycle.status)) {
+    return { eligible: false, reason: "Create or accept a date proposal first", lifecycle };
+  }
+  if (!lifecycle.proposalId) {
+    return { eligible: false, reason: "A date proposal is required before relationship mode", lifecycle };
+  }
+  if (getRelationshipBySourceMatch(lifecycle.id)) {
+    return { eligible: false, reason: "Relationship mode already exists for this match", lifecycle };
+  }
+  const userBlockedCandidate = getSafetyEvents(userId).some(
+    (event) => event.candidateId === lifecycle.candidateId && event.action === "block"
+  );
+  if (userBlockedCandidate) {
+    return { eligible: false, reason: "Blocked matches cannot enter relationship mode", lifecycle };
+  }
+  const initiatorCandidateId = `usercand_${userId}`;
+  const candidateBlockedUser = getSafetyEvents(lifecycle.candidateOwnerUserId).some(
+    (event) => event.candidateId === initiatorCandidateId && event.action === "block"
+  );
+  if (candidateBlockedUser) {
+    return { eligible: false, reason: "This match is unavailable for relationship mode", lifecycle };
+  }
+  return { eligible: true, lifecycle };
+}
+
+export function createRelationshipInvitation(
+  userId: string,
+  matchLifecycleId: string
+): {
+  relationship?: RelationshipRecord;
+  members?: RelationshipMember[];
+  error?: string;
+} {
+  const eligibility = getRelationshipEligibility(userId, matchLifecycleId);
+  if (!eligibility.eligible || !eligibility.lifecycle) {
+    return { error: eligibility.reason ?? "This match is not eligible" };
+  }
+
+  const lifecycle = eligibility.lifecycle;
+  const now = Date.now();
+  const relationship: RelationshipRecord = {
+    id: uid("rel"),
+    sourceMatchLifecycleId: lifecycle.id,
+    createdByUserId: userId,
+    partnerUserIds: [userId, lifecycle.candidateOwnerUserId!],
+    stage: "early_dating",
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+    profile: {
+      sharedValues: [],
+      qualityTimePreferences: [],
+      communicationNorms: [],
+    },
+  };
+  const members: RelationshipMember[] = [
+    {
+      id: uid("relm"),
+      relationshipId: relationship.id,
+      userId,
+      candidateId: `usercand_${userId}`,
+      status: "accepted",
+      sharingLevel: "summary",
+      createdAt: now,
+      updatedAt: now,
+      preferences: {
+        dateNightPreferences: [],
+        sensitiveTopics: [],
+      },
+    },
+    {
+      id: uid("relm"),
+      relationshipId: relationship.id,
+      userId: lifecycle.candidateOwnerUserId!,
+      candidateId: lifecycle.candidateId,
+      status: "invited",
+      sharingLevel: "summary",
+      createdAt: now,
+      updatedAt: now,
+      preferences: {
+        dateNightPreferences: [],
+        sensitiveTopics: [],
+      },
+    },
+  ];
+
+  saveRelationship(relationship);
+  for (const member of members) saveRelationshipMember(member);
+  trackEvent(userId, "relationship_invitation_created", {
+    relationshipId: relationship.id,
+    lifecycleId: lifecycle.id,
+    candidateId: lifecycle.candidateId,
+    partnerUserId: lifecycle.candidateOwnerUserId,
+  });
+  return { relationship, members };
 }
 
 // Safety
