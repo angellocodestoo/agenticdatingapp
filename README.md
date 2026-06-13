@@ -141,3 +141,7 @@ Phase 1 now has the product backbone for real agentic dating. Remaining producti
 - Replace mock masked numbers with a phone provider.
 - Move from local SQLite to managed persistent storage for multi-instance deployment.
 - Add admin review tooling for reports and moderation queues.
+
+## Phase 2
+
+Phase 2 expands Red String into an early-relationship copilot for mutually opted-in matches. See [docs/phase-2-prd.md](docs/phase-2-prd.md) for the build plan.
