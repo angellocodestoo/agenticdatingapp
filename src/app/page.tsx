@@ -42,7 +42,7 @@ export default function LandingPage() {
             </svg>
           </div>
           <h1 className="text-5xl font-semibold tracking-tight text-stone-900 leading-tight">
-            Fate, handled.
+            Your agent finds<br />your person.
           </h1>
           <p className="text-lg text-stone-500 max-w-md mx-auto leading-relaxed">
             Legend says an invisible red thread ties you to your person — it can stretch
